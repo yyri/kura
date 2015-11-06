@@ -198,7 +198,7 @@ public class RemoteTargetTest {
 			mqttProps.put("broker-url", "mqtt://broker-sandbox.everyware-cloud.com:1883/");
 			mqttProps.put("topic.context.account-name", "EDC-KURA-CI");
 			mqttProps.put("username", "EDC-KURA-CI");
-			mqttProps.put("password", "PYtv3?s@");
+			mqttProps.put("password", "PYtv3?s@zYs8");
 			mqttConfig.update(mqttProps);
 			
 			Configuration dataConfig = m_configAdmin.getConfiguration("org.eclipse.kura.data.DataService");

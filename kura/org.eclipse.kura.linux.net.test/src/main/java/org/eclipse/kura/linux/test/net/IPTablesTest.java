@@ -207,15 +207,16 @@ public class IPTablesTest extends TestCase {
 			}
 			fr.close();
 			
+			//FIXME: the following code seems not to work and blocks the tests
 			// Restore old config
-			proc = ProcessUtil.exec("iptables-restore");			
-			OutputStreamWriter osr = new OutputStreamWriter(proc.getOutputStream());
-			BufferedWriter bw = new BufferedWriter(osr);			
-			bw.write(data.toString());
-			bw.flush();
-			bw.close();
-						
-			proc.waitFor();
+//			proc = ProcessUtil.exec("iptables-restore");			
+//			OutputStreamWriter osr = new OutputStreamWriter(proc.getOutputStream());
+//			BufferedWriter bw = new BufferedWriter(osr);			
+//			bw.write(data.toString());
+//			bw.flush();
+//			bw.close();
+//						
+//			proc.waitFor();
 		} catch (Exception e) {
 			fail("Error restoring iptables config");
 		}
