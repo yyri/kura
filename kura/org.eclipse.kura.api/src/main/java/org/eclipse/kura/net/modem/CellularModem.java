@@ -76,14 +76,21 @@ public interface CellularModem {
      */
     public boolean isReachable() throws KuraException;
     
+//    /**
+//     * Reports if specified port can be opened
+//     * 
+//     * @param port - modem's serial port
+//     * @return 'true' if port can be opened, 'false' otherwise
+//     */
+//    public boolean isPortReachable(String port);
+ 
     /**
-     * Reports if specified port can be opened
+     * Reports if the AT port can be opened
      * 
-     * @param port - modem's serial port
      * @return 'true' if port can be opened, 'false' otherwise
      */
-    public boolean isPortReachable(String port);
-     
+    public boolean isPortReachable() throws KuraException;
+    
     /**
      * resets the modem and tries to restore the state 
      * of the modem driver. (e.g. PPP connection, status thread) 

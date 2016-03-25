@@ -894,7 +894,7 @@ public class ModemMonitorServiceImpl implements ModemMonitorService, ModemManage
 		do {
 			try {
 				Thread.sleep(3000);
-				if (modem.isPortReachable(modem.getAtPort())) {
+				if (modem.isPortReachable()) {
 					s_logger.debug("disableModemGps() modem is now reachable ...");
 					portIsReachable = true;
 					break;

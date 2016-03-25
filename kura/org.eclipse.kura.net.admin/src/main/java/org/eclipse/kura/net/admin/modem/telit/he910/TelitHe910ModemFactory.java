@@ -14,13 +14,13 @@ package org.eclipse.kura.net.admin.modem.telit.he910;
 import java.util.Hashtable;
 
 import org.eclipse.kura.net.admin.NetworkConfigurationService;
+import org.eclipse.kura.net.admin.modem.AtConnectionFactory;
 import org.eclipse.kura.net.admin.modem.CellularModemFactory;
 import org.eclipse.kura.net.modem.CellularModem;
 import org.eclipse.kura.net.modem.ModemDevice;
 import org.eclipse.kura.net.modem.ModemTechnologyType;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
-import org.osgi.service.io.ConnectionFactory;
 import org.osgi.util.tracker.ServiceTracker;
 
 /**
@@ -40,14 +40,14 @@ public class TelitHe910ModemFactory implements CellularModemFactory {
 	private BundleContext s_bundleContext = null;
 	private Hashtable<String, TelitHe910> m_modemServices = null;
 	
-	private ConnectionFactory m_connectionFactory = null;
+	private AtConnectionFactory m_atConnectionFactory = null;
 	
 	private TelitHe910ModemFactory() {
 		s_bundleContext = FrameworkUtil.getBundle(NetworkConfigurationService.class).getBundleContext();
 		
-		ServiceTracker<ConnectionFactory, ConnectionFactory> serviceTracker = new ServiceTracker<ConnectionFactory, ConnectionFactory>(s_bundleContext, ConnectionFactory.class, null);
+		ServiceTracker<AtConnectionFactory, AtConnectionFactory> serviceTracker = new ServiceTracker<AtConnectionFactory, AtConnectionFactory>(s_bundleContext, AtConnectionFactory.class, null);
 		serviceTracker.open(true);
-		m_connectionFactory = serviceTracker.getService();
+		m_atConnectionFactory = serviceTracker.getService();
 		
 		m_modemServices = new Hashtable<String, TelitHe910>();
 	}
@@ -66,7 +66,7 @@ public class TelitHe910ModemFactory implements CellularModemFactory {
 		TelitHe910 telitHe910 = m_modemServices.get(key);
 
 		if (telitHe910 == null) {
-			telitHe910 = new TelitHe910(modemDevice, platform, m_connectionFactory);
+			telitHe910 = new TelitHe910(modemDevice, platform, m_atConnectionFactory);
 			m_modemServices.put(key, telitHe910);
 		} else {
 			telitHe910.setModemDevice(modemDevice);

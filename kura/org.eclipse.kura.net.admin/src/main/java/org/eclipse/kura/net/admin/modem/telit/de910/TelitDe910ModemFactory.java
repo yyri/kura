@@ -14,13 +14,13 @@ package org.eclipse.kura.net.admin.modem.telit.de910;
 import java.util.Hashtable;
 
 import org.eclipse.kura.net.admin.NetworkConfigurationService;
+import org.eclipse.kura.net.admin.modem.AtConnectionFactory;
 import org.eclipse.kura.net.admin.modem.CellularModemFactory;
 import org.eclipse.kura.net.modem.CellularModem;
 import org.eclipse.kura.net.modem.ModemDevice;
 import org.eclipse.kura.net.modem.ModemTechnologyType;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
-import org.osgi.service.io.ConnectionFactory;
 import org.osgi.util.tracker.ServiceTracker;
 
 public class TelitDe910ModemFactory implements CellularModemFactory {
@@ -29,14 +29,14 @@ public class TelitDe910ModemFactory implements CellularModemFactory {
 	private static ModemTechnologyType s_type = ModemTechnologyType.EVDO;
 	private BundleContext s_bundleContext = null;
 	private Hashtable<String, TelitDe910> m_modemServices = null;
-	private ConnectionFactory m_connectionFactory = null;
+	private AtConnectionFactory m_atConnectionFactory = null;
 	
 	private TelitDe910ModemFactory () {
 		s_bundleContext = FrameworkUtil.getBundle(NetworkConfigurationService.class).getBundleContext();
 		
-		ServiceTracker<ConnectionFactory, ConnectionFactory> serviceTracker = new ServiceTracker<ConnectionFactory, ConnectionFactory>(s_bundleContext, ConnectionFactory.class, null);
+		ServiceTracker<AtConnectionFactory, AtConnectionFactory> serviceTracker = new ServiceTracker<AtConnectionFactory, AtConnectionFactory>(s_bundleContext, AtConnectionFactory.class, null);
 		serviceTracker.open(true);
-		m_connectionFactory = serviceTracker.getService();
+		m_atConnectionFactory = serviceTracker.getService();
 		
 		m_modemServices = new Hashtable<String, TelitDe910>();
 	}
@@ -54,7 +54,7 @@ public class TelitDe910ModemFactory implements CellularModemFactory {
 		TelitDe910 telitDe910 = m_modemServices.get(key);
 
 		if (telitDe910 == null) {
-			telitDe910 = new TelitDe910(modemDevice, platform, m_connectionFactory);
+			telitDe910 = new TelitDe910(modemDevice, platform, m_atConnectionFactory);
 			m_modemServices.put(key, telitDe910);
 		} else {
 			telitDe910.setModemDevice(modemDevice);

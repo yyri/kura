@@ -14,6 +14,7 @@ package org.eclipse.kura.net.admin.modem.ublox.generic;
 import java.util.Hashtable;
 
 import org.eclipse.kura.net.admin.NetworkConfigurationService;
+import org.eclipse.kura.net.admin.modem.AtConnectionFactory;
 import org.eclipse.kura.net.admin.modem.CellularModemFactory;
 import org.eclipse.kura.net.modem.CellularModem;
 import org.eclipse.kura.net.modem.ModemDevice;
@@ -38,14 +39,14 @@ public class UbloxModemFactory implements CellularModemFactory {
 	private BundleContext s_bundleContext = null;
 	private Hashtable<String, UbloxModem> m_modemServices = null;
 	
-	private ConnectionFactory m_connectionFactory = null;
+	private AtConnectionFactory m_atConnectionFactory = null;
 	
 	private UbloxModemFactory() {
 		s_bundleContext = FrameworkUtil.getBundle(NetworkConfigurationService.class).getBundleContext();
 		
-		ServiceTracker<ConnectionFactory, ConnectionFactory> serviceTracker = new ServiceTracker<ConnectionFactory, ConnectionFactory>(s_bundleContext, ConnectionFactory.class, null);
+		ServiceTracker<AtConnectionFactory, AtConnectionFactory> serviceTracker = new ServiceTracker<AtConnectionFactory, AtConnectionFactory>(s_bundleContext, AtConnectionFactory.class, null);
 		serviceTracker.open(true);
-		m_connectionFactory = serviceTracker.getService();
+		m_atConnectionFactory = serviceTracker.getService();
 		
 		m_modemServices = new Hashtable<String, UbloxModem>();
 	}
@@ -64,7 +65,7 @@ public class UbloxModemFactory implements CellularModemFactory {
 		UbloxModem ubloxModem = m_modemServices.get(key);
 
 		if (ubloxModem == null) {
-			ubloxModem = new UbloxModem(modemDevice, platform, m_connectionFactory);
+			ubloxModem = new UbloxModem(modemDevice, platform, m_atConnectionFactory);
 			m_modemServices.put(key, ubloxModem);
 		} else {
 			ubloxModem.setModemDevice(modemDevice);

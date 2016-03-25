@@ -19,6 +19,7 @@ import org.eclipse.kura.KuraException;
 import org.eclipse.kura.comm.CommConnection;
 import org.eclipse.kura.linux.net.modem.SupportedUsbModemInfo;
 import org.eclipse.kura.linux.net.modem.SupportedUsbModemsInfo;
+import org.eclipse.kura.net.admin.modem.AtConnectionFactory;
 import org.eclipse.kura.net.admin.modem.EvdoCellularModem;
 import org.eclipse.kura.net.admin.modem.telit.generic.TelitModem;
 import org.eclipse.kura.net.modem.ModemCdmaServiceProvider;
@@ -42,9 +43,9 @@ public class TelitDe910 extends TelitModem implements EvdoCellularModem {
      * @param connectionFactory - connection factory {@link ConnectionFactory}
      */
 	public TelitDe910(ModemDevice device, String platform,
-			ConnectionFactory connectionFactory) {
+			AtConnectionFactory atConnectionFactory) {
 		
-		super(device, platform, connectionFactory);
+		super(device, platform, atConnectionFactory);
 		
 		try {
 			String atPort = getAtPort();
@@ -86,7 +87,7 @@ public class TelitDe910 extends TelitModem implements EvdoCellularModem {
     	synchronized (s_atLock) {
     		s_logger.debug("sendCommand getRegistrationStatus :: {}", TelitDe910AtCommands.getNetRegistrationStatus.getCommand());
 	    	byte[] reply = null;
-	    	CommConnection commAtConnection = openSerialPort(getAtPort());
+	    	CommConnection commAtConnection = openAtPort();
 	    	if (!isAtReachable(commAtConnection)) {
 	    		closeSerialPort(commAtConnection);
 	    		throw new KuraException(KuraErrorCode.NOT_CONNECTED, "Modem not available for AT commands: " + TelitDe910.class.getName());
@@ -132,7 +133,7 @@ public class TelitDe910 extends TelitModem implements EvdoCellularModem {
     	synchronized (s_atLock) {
 	    	s_logger.debug("sendCommand getGprsSessionDataVolume :: {}", TelitDe910AtCommands.getSessionDataVolume.getCommand());
 	    	byte[] reply = null;
-	    	CommConnection commAtConnection = openSerialPort(getAtPort());
+	    	CommConnection commAtConnection = openAtPort();
 	    	if (!isAtReachable(commAtConnection)) {
 	    		closeSerialPort(commAtConnection);
 	    		throw new KuraException(KuraErrorCode.NOT_CONNECTED, "Modem not available for AT commands: " + TelitDe910.class.getName());
@@ -172,7 +173,7 @@ public class TelitDe910 extends TelitModem implements EvdoCellularModem {
     	synchronized (s_atLock) {
 	    	s_logger.debug("sendCommand getGprsSessionDataVolume :: {}", TelitDe910AtCommands.getSessionDataVolume.getCommand());
 	    	byte[] reply = null;
-	    	CommConnection commAtConnection = openSerialPort(getAtPort());
+	    	CommConnection commAtConnection = openAtPort();
 	    	if (!isAtReachable(commAtConnection)) {
 	    		closeSerialPort(commAtConnection);
 	    		throw new KuraException(KuraErrorCode.NOT_CONNECTED, "Modem not available for AT commands: " + TelitDe910.class.getName());
@@ -212,7 +213,7 @@ public class TelitDe910 extends TelitModem implements EvdoCellularModem {
     	synchronized (s_atLock) {
     		s_logger.debug("sendCommand getServiceType :: {}", TelitDe910AtCommands.getServiceType.getCommand());
 	    	byte[] reply = null;
-	    	CommConnection commAtConnection = openSerialPort(getAtPort());
+	    	CommConnection commAtConnection = openAtPort();
 	    	if (!isAtReachable(commAtConnection)) {
 	    		closeSerialPort(commAtConnection);
 	    		throw new KuraException(KuraErrorCode.NOT_CONNECTED, "Modem not available for AT commands: " + TelitDe910.class.getName());
@@ -259,7 +260,7 @@ public class TelitDe910 extends TelitModem implements EvdoCellularModem {
 		synchronized (s_atLock) {
 			s_logger.debug("sendCommand getMdn :: {}", TelitDe910AtCommands.getMdn.getCommand());
 			byte[] reply = null;
-			CommConnection commAtConnection = openSerialPort(getAtPort());
+			CommConnection commAtConnection = openAtPort();
 			if (!isAtReachable(commAtConnection)) {
 				closeSerialPort(commAtConnection);
 				throw new KuraException(KuraErrorCode.NOT_CONNECTED, "Modem not available for AT commands: " + TelitDe910.class.getName());
@@ -288,7 +289,7 @@ public class TelitDe910 extends TelitModem implements EvdoCellularModem {
 		synchronized (s_atLock) {
 			s_logger.debug("sendCommand getMsid :: {}", TelitDe910AtCommands.getMsid.getCommand());
 			byte[] reply = null;
-			CommConnection commAtConnection = openSerialPort(getAtPort());
+			CommConnection commAtConnection = openAtPort();
 			if (!isAtReachable(commAtConnection)) {
 				closeSerialPort(commAtConnection);
 				throw new KuraException(KuraErrorCode.NOT_CONNECTED, "Modem not available for AT commands: " + TelitDe910.class.getName());
@@ -366,7 +367,7 @@ public class TelitDe910 extends TelitModem implements EvdoCellularModem {
 			
 			if (startOTASPsession) {
 				s_logger.info("Starting 'OTASP' provision session");
-				CommConnection commAtConnection = openSerialPort(getAtPort());
+				CommConnection commAtConnection = openAtPort();
 				if (!isAtReachable(commAtConnection)) {
 					closeSerialPort(commAtConnection);
 					throw new KuraException(KuraErrorCode.NOT_CONNECTED, "Modem not available for AT commands: " + TelitDe910.class.getName());
@@ -425,4 +426,5 @@ public class TelitDe910 extends TelitModem implements EvdoCellularModem {
 		}
 		return modemTechnologyType;
 	}
+
 }

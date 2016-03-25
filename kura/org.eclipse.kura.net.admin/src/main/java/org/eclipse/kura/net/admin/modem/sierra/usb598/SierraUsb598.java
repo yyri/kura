@@ -31,6 +31,7 @@ import org.eclipse.kura.comm.CommURI;
 import org.eclipse.kura.linux.net.modem.SupportedUsbModemInfo;
 import org.eclipse.kura.linux.net.modem.SupportedUsbModemsInfo;
 import org.eclipse.kura.net.NetConfig;
+import org.eclipse.kura.net.admin.modem.AtConnectionFactory;
 import org.eclipse.kura.net.admin.modem.EvdoCellularModem;
 import org.eclipse.kura.net.admin.modem.sierra.CnS;
 import org.eclipse.kura.net.admin.modem.sierra.CnsAppIDs;
@@ -54,7 +55,7 @@ public class SierraUsb598 implements EvdoCellularModem {
 	//private static final int AT_PORT = 0;
 	private static final int HIP_PORT = 1;
 	
-	private ConnectionFactory m_connectionFactory = null;
+	private AtConnectionFactory m_atConnectionFactory = null;
 	private String m_model = null;
 	private String m_manufacturer = null;
 	private String m_esn = null;
@@ -153,10 +154,10 @@ public class SierraUsb598 implements EvdoCellularModem {
      * @param technologyType - cellular technology type as {@link ModemTechnologyType}
      */
 	public SierraUsb598(ModemDevice device,
-			ConnectionFactory connectionFactory) {
+			AtConnectionFactory atConnectionFactory) {
         
         m_device = device;
-        m_connectionFactory = connectionFactory;
+        m_atConnectionFactory = atConnectionFactory;
         m_atLock = new Object();
         s_topicsOfInterest = generateSubscribeTopics();
     	// subscribe on specific topics of interest
@@ -175,7 +176,7 @@ public class SierraUsb598 implements EvdoCellularModem {
     
     public void bind() {
     	try {
-    		m_commHipConnection = openSerialPort(getHipPort());
+    		m_commHipConnection = openHipPort();
     		
     		this.m_executor.scheduleAtFixedRate(new Runnable() {
     			public void run() {
@@ -210,7 +211,7 @@ public class SierraUsb598 implements EvdoCellularModem {
 	    	if (m_model == null) {
 	    		s_logger.debug("sendCommand getModelNumber :: {}", SierraUsb598AtCommands.getModelNumber.getCommand());
 		    	byte[] reply = null;
-		    	CommConnection commAtConnection = openSerialPort(getAtPort());
+		    	CommConnection commAtConnection = openAtPort();
 		    	if (!isAtReachable(commAtConnection)) {
 		    		throw new KuraException(KuraErrorCode.INTERNAL_ERROR,
 							"Modem not available for AT commands: "
@@ -238,7 +239,7 @@ public class SierraUsb598 implements EvdoCellularModem {
 	    	if (m_manufacturer == null) {
 		    	s_logger.debug("sendCommand getManufacturer :: {}", SierraUsb598AtCommands.getManufacturer.getCommand());
 		    	byte[] reply = null;
-		    	CommConnection commAtConnection = openSerialPort(getAtPort());
+		    	CommConnection commAtConnection = openAtPort();
 		    	if (!isAtReachable(commAtConnection)) {
 		    		throw new KuraException(KuraErrorCode.INTERNAL_ERROR,
 							"Modem not available for AT commands: "
@@ -265,7 +266,7 @@ public class SierraUsb598 implements EvdoCellularModem {
 	    	if (m_esn != null) {
 	    		s_logger.debug("sendCommand getSerialNumber :: {}", SierraUsb598AtCommands.getSerialNumber.getCommand());
 	    		byte[] reply = null;
-	    		CommConnection commAtConnection = openSerialPort(getAtPort());
+	    		CommConnection commAtConnection = openAtPort();
 	    		if (!isAtReachable(commAtConnection)) {
 		    		throw new KuraException(KuraErrorCode.INTERNAL_ERROR,
 							"Modem not available for AT commands: "
@@ -320,7 +321,7 @@ public class SierraUsb598 implements EvdoCellularModem {
 		synchronized (m_atLock) {
 	    	if (m_revisionId == null) {
 	    		byte [] reply = null;
-	    		CommConnection commAtConnection = openSerialPort(getAtPort());
+	    		CommConnection commAtConnection = openAtPort();
 	    		if (!isAtReachable(commAtConnection)) {
 		    		throw new KuraException(KuraErrorCode.INTERNAL_ERROR,
 							"Modem not available for AT commands: "
@@ -347,15 +348,15 @@ public class SierraUsb598 implements EvdoCellularModem {
 	}
 	
 	@Override
-	public boolean isPortReachable(String port) {
+	public boolean isPortReachable() throws KuraException {
 		boolean ret = false;
 		synchronized (m_atLock) {
 			try {
-				CommConnection commAtConnection = openSerialPort(port);
+				CommConnection commAtConnection = openAtPort();
 				closeSerialPort(commAtConnection);
 				ret = true;
 			} catch (KuraException e) {
-				s_logger.warn("isPortReachable() :: The {} is not reachable", port);
+				s_logger.warn("isPortReachable() :: The {} is not reachable", getAtPort());
 			}
 		}
 		return ret;
@@ -553,23 +554,23 @@ public class SierraUsb598 implements EvdoCellularModem {
 		return modemTechnologyType;
 	}
 	
-	private String getHipPort() throws KuraException {
-		String port = null;
-		
-		if (m_device instanceof UsbModemDevice) {
-			UsbModemDevice usbModemDevice = (UsbModemDevice)m_device;
-			List <String> ports = usbModemDevice.getTtyDevs();
-			if ((ports != null) && (ports.size() > 0)) {
-				port = ports.get(HIP_PORT);
-    		} else {
-    			throw new KuraException(KuraErrorCode.INTERNAL_ERROR, "No HIP serial port available");
-    		}
-		} else {
-			throw new KuraException(KuraErrorCode.INTERNAL_ERROR, "No HIP serial port available");
-		}
-		
-    	return port;
-	}
+//	private String getHipPort() throws KuraException {
+//		String port = null;
+//		
+//		if (m_device instanceof UsbModemDevice) {
+//			UsbModemDevice usbModemDevice = (UsbModemDevice)m_device;
+//			List <String> ports = usbModemDevice.getTtyDevs();
+//			if ((ports != null) && (ports.size() > 0)) {
+//				port = ports.get(HIP_PORT);
+//    		} else {
+//    			throw new KuraException(KuraErrorCode.INTERNAL_ERROR, "No HIP serial port available");
+//    		}
+//		} else {
+//			throw new KuraException(KuraErrorCode.INTERNAL_ERROR, "No HIP serial port available");
+//		}
+//		
+//    	return port;
+//	}
 	
 	@Override
 	public ModemCdmaServiceProvider getServiceProvider() {
@@ -605,20 +606,12 @@ public class SierraUsb598 implements EvdoCellularModem {
 		return false;
 	}
 	
-	private CommConnection openSerialPort (String port) throws KuraException {
+	private CommConnection openAtPort () throws KuraException {
     	
 		CommConnection connection = null;
-		if(m_connectionFactory != null) {
-			String uri = new CommURI.Builder(port)
-							.withBaudRate(115200)
-							.withDataBits(8)
-							.withStopBits(1)
-							.withParity(0)
-							.withTimeout(2000)
-							.build().toString();
-				
+		if(m_atConnectionFactory != null) {
 			try {
-				connection = (CommConnection) m_connectionFactory.createConnection(uri, 1, false);
+				connection = (CommConnection) m_atConnectionFactory.createConnection(m_device, 1, false);
 			} catch (Exception e) {
 				s_logger.debug("Exception creating connection: {}", e);
 				throw new KuraException(KuraErrorCode.INTERNAL_ERROR, e);
@@ -626,7 +619,21 @@ public class SierraUsb598 implements EvdoCellularModem {
 		}
 		return connection;
     }
-    
+ 
+	private CommConnection openHipPort () throws KuraException {
+    	
+		CommConnection connection = null;
+		if(m_atConnectionFactory != null) {
+			try {
+				connection = (CommConnection) m_atConnectionFactory.createHipConnection(m_device, 1, false);
+			} catch (Exception e) {
+				s_logger.debug("Exception creating connection: {}", e);
+				throw new KuraException(KuraErrorCode.INTERNAL_ERROR, e);
+			}
+		}
+		return connection;
+    }
+	
     private void closeSerialPort (CommConnection connection) throws KuraException {
 		try {
 			connection.close();
