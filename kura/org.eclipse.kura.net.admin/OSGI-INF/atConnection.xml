@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scr:component xmlns:scr="http://www.osgi.org/xmlns/scr/v1.1.0" activate="activate" deactivate="deactivate" immediate="true" name="org.eclipse.kura.net.admin.modem.AtConnectionFactory">
+   <implementation class="org.eclipse.kura.net.admin.modem.AtConnectionFactoryImpl"/>
+   <reference bind="setConnectionFactory" cardinality="1..1" interface="org.osgi.service.io.ConnectionFactory" name="ConnectionFactory" policy="static" unbind="unsetConnectionFactory"/>
+   <service>
+      <provide interface="org.eclipse.kura.net.admin.modem.AtConnectionFactory"/>
+   </service>
+</scr:component>
