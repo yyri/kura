@@ -24,8 +24,9 @@ public class ModemReadyEvent extends Event {
     public static final String IMSI = "IMSI";
     public static final String ICCID = "ICCID";
     public static final String RSSI = "RSSI";
+    public static final String MODEM = "modem";
     
-    public ModemReadyEvent(Map<String, String> properties) {
+    public ModemReadyEvent(Map<String, Object> properties) {
         super(MODEM_EVENT_READY_TOPIC, properties);
     }
 }

@@ -30,6 +30,8 @@ import org.osgi.util.tracker.ServiceTracker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+//http://unix.stackexchange.com/questions/99345/sharing-serial-device
+	
 public class AtConnectionFactoryImpl implements AtConnectionFactory {
 
 	private static final Logger s_logger = LoggerFactory.getLogger(AtConnectionFactoryImpl.class);

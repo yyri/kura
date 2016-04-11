@@ -23,8 +23,6 @@ public interface SmsService extends ConnectionFactory {
 	
 	public boolean queueMessageAt(SmsMessage sms, long after) throws KuraException;
 	
-	public boolean removeMessageFromQueue(SmsMessage sms)  throws KuraException;
-	
 	public boolean deleteMessage(SmsMessage sms)  throws KuraException;
 	
 	public boolean sendUSSDCommand(String request) throws KuraException;
@@ -35,14 +33,22 @@ public interface SmsService extends ConnectionFactory {
 	
 	public void setInboundSmsMessageNotification(SmsMessageNotification notification) throws KuraException;
 	
+	public void removeInboundSmsMessageNotification() throws KuraException;
+	
 	public SmsMessageNotification getInboundSmsMessageNotification() throws KuraException;
 	
 	public void setOutboundSmsMessageNotification(SmsMessageNotification notification) throws KuraException;
+	
+	public void removeOutboundSmsMessageNotification() throws KuraException;
 	
 	public SmsMessageNotification getOutboundSmsMessageNotification() throws KuraException;
 	
 	public void setUSSDNotification(USSDSmsNotification notification) throws KuraException;
 	
+	public void removeUSSDNotification() throws KuraException;
+	
 	public USSDSmsNotification getUSSDNotification() throws KuraException;
+	
+	public void setDeleteMessagesAfterCallback(boolean value) throws KuraException;	
 	
 }
