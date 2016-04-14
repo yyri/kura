@@ -17,7 +17,6 @@ import org.eclipse.kura.linux.net.modem.SupportedUsbModemInfo;
 import org.eclipse.kura.linux.net.modem.SupportedUsbModemsInfo;
 import org.eclipse.kura.net.modem.ModemDevice;
 import org.eclipse.kura.net.modem.SerialModemDevice;
-import org.eclipse.kura.net.sms.SmsService;
 import org.eclipse.kura.usb.UsbModemDevice;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.Constants;
@@ -78,27 +77,27 @@ public class AtConnectionFactoryImpl implements AtConnectionFactory {
 				public void run() {
 					Thread.currentThread().setName("Tracker");
 
-					// Search for SmsService if it is already started... 
-					ServiceTracker<SmsService, SmsService> serviceTracker = new ServiceTracker<SmsService, SmsService>(s_bundleContext, SmsService.class, null);
+					// Search for ExtendedConnectionFactory if it is already started... 
+					ServiceTracker<ExtendedConnectionFactory, ExtendedConnectionFactory> serviceTracker = new ServiceTracker<ExtendedConnectionFactory, ExtendedConnectionFactory>(s_bundleContext, ExtendedConnectionFactory.class.getName(), null);
 					serviceTracker.open(true);
 					if (serviceTracker.getService() != null) {
-						s_logger.info("Use SmsService for at connection.");
+						s_logger.info("Use ExtendedConnectionFactory for at connection.");
 						m_connectionFactory = serviceTracker.getService();
 						serviceTracker.close();
 					} 
 					else {
 					    // If the service is not started, add a listener for it
-						String filter = "(" + Constants.OBJECTCLASS + "=" + SmsService.class.getName() + ")";
+						String filter = "(" + Constants.OBJECTCLASS + "=" + ExtendedConnectionFactory.class.getName() + ")";
 						try {
 							s_bundleContext.addServiceListener(new ServiceListener() {
 
 								@Override
 								public void serviceChanged(ServiceEvent event) {
 									if (event.getType() == ServiceEvent.REGISTERED) {
-										ServiceTracker<SmsService, SmsService> serviceTracker = new ServiceTracker<SmsService, SmsService>(s_bundleContext, SmsService.class.getName(), null);
+										ServiceTracker<ExtendedConnectionFactory, ExtendedConnectionFactory> serviceTracker = new ServiceTracker<ExtendedConnectionFactory, ExtendedConnectionFactory>(s_bundleContext, ExtendedConnectionFactory.class.getName(), null);
 										serviceTracker.open(true);
 										if (serviceTracker.getService() != null) {
-											s_logger.info("Use SmsService for at connection.");
+											s_logger.info("Use ExtendedConnectionFactory for at connection.");
 											m_connectionFactory = serviceTracker.getService();
 											serviceTracker.close();
 										}
