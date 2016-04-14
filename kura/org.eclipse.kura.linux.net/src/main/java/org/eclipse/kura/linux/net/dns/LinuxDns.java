@@ -483,11 +483,15 @@ public class LinuxDns {
 		synchronized(s_lock) {
 			File file = new File(DNS_FILE_NAME);
 			if(isSymlink(file)) {
-				if(getRealPath(file).compareTo(getPppDnsFileName()) == 0) {
-					return true;
-				} else {
+				String PppDnsFileName = getPppDnsFileName();
+				if (PppDnsFileName != null) {
+					if(getRealPath(file).compareTo(PppDnsFileName) == 0) {
+						return true;
+					} else {
+						return false;
+					}
+				} else
 					return false;
-				}
 			} else {
 				return false;
 			}
