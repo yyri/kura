@@ -118,7 +118,7 @@ public class AtConnectionFactoryImpl implements AtConnectionFactory {
 			}, 0, TimeUnit.MILLISECONDS);
 		}
 		
-		s_logger.debug("AtConnectionFactory activating...Done.");
+		s_logger.info("AtConnectionFactory activating...Done.");
 	}
 	
 	
