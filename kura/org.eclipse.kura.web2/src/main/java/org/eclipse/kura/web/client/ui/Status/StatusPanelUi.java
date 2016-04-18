@@ -28,7 +28,7 @@ import org.eclipse.kura.web.shared.service.GwtStatusService;
 import org.eclipse.kura.web.shared.service.GwtStatusServiceAsync;
 import org.gwtbootstrap3.client.ui.Button;
 import org.gwtbootstrap3.client.ui.Well;
-import org.gwtbootstrap3.client.ui.gwt.DataGrid;
+import org.gwtbootstrap3.client.ui.gwt.CellTable;
 
 import com.google.gwt.cell.client.SafeHtmlCell;
 import com.google.gwt.core.client.GWT;
@@ -61,15 +61,19 @@ public class StatusPanelUi extends Composite {
 	private final GwtStatusServiceAsync gwtStatusService = GWT.create(GwtStatusService.class);
 	private final GwtSecurityTokenServiceAsync gwtXSRFService = GWT.create(GwtSecurityTokenService.class);
 	
-	GwtSession currentSession;
+	private GwtSession currentSession;
+	private ListDataProvider<GwtGroupedNVPair> statusGridProvider = new ListDataProvider<GwtGroupedNVPair>();
+	private EntryClassUi parent;
 
 	@UiField
 	Well statusWell;
 	@UiField
 	Button statusRefresh, statusConnect, statusDisconnect;
 	@UiField
-	DataGrid<GwtGroupedNVPair> statusGrid = new DataGrid<GwtGroupedNVPair>();
-	private ListDataProvider<GwtGroupedNVPair> statusGridProvider = new ListDataProvider<GwtGroupedNVPair>();
+	CellTable<GwtGroupedNVPair> statusGrid = new CellTable<GwtGroupedNVPair>();
+	
+	
+	
 
 	public StatusPanelUi() {
 		logger.log(Level.FINER, "Initializing StatusPanelUi...");
@@ -123,7 +127,7 @@ public class StatusPanelUi extends Composite {
 	}
 
 	// create table layout
-	public void loadStatusTable(DataGrid<GwtGroupedNVPair> grid, ListDataProvider<GwtGroupedNVPair> dataProvider) {
+	public void loadStatusTable(CellTable<GwtGroupedNVPair> grid, ListDataProvider<GwtGroupedNVPair> dataProvider) {
 		TextColumn<GwtGroupedNVPair> col1 = new TextColumn<GwtGroupedNVPair>() {
 
 			@Override
@@ -149,7 +153,6 @@ public class StatusPanelUi extends Composite {
 	// fetch table data
 	public void loadStatusData() {
 		statusGridProvider.getList().clear();
-		
 		EntryClassUi.showWaitModal();
 		gwtXSRFService.generateSecurityToken(new AsyncCallback<GwtXSRFToken> () {
 
@@ -172,18 +175,18 @@ public class StatusPanelUi extends Composite {
 
 							@Override
 							public void onSuccess(ArrayList<GwtGroupedNVPair> result) {
-
-								String title = "cloudStatus";;
+								String title = "cloudStatus";
 								statusGridProvider.getList().add(new GwtGroupedNVPair(" ",msgs.getString(title), " "));
 								for (GwtGroupedNVPair resultPair : result) {
 									if ("Connection Status".equals(resultPair.getName())) {
 										if ("CONNECTED".equals(resultPair.getValue())) {
 											statusConnect.setEnabled(false);
 											statusDisconnect.setEnabled(true);
-										}
-										else {
+											parent.updateConnectionStatusImage(true);
+										} else {
 											statusConnect.setEnabled(true);
 											statusDisconnect.setEnabled(false);
+											parent.updateConnectionStatusImage(false);
 										}
 									}
 									if (!title.equals(resultPair.getGroup())) {
@@ -192,14 +195,18 @@ public class StatusPanelUi extends Composite {
 									}
 									statusGridProvider.getList().add(resultPair);
 								}
+								int size= statusGridProvider.getList().size();
+								statusGrid.setVisibleRange(0, size);
 								statusGridProvider.flush();
 								EntryClassUi.hideWaitModal();
 							}
-
 						});
 			}
-			
 		});
+	}
+	
+	public void setParent(EntryClassUi parent) {
+		this.parent= parent;
 	}
 	
 	private void connectDataService() {

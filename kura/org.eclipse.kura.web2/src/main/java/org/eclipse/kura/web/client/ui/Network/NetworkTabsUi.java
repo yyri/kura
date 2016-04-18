@@ -12,7 +12,6 @@
 package org.eclipse.kura.web.client.ui.Network;
 
 import java.util.ArrayList;
-import java.util.logging.Logger;
 
 import org.eclipse.kura.web.client.messages.Messages;
 import org.eclipse.kura.web.client.util.MessageUtils;
@@ -42,7 +41,6 @@ public class NetworkTabsUi extends Composite {
 	private static final String IPV4_STATUS_ENABLED_LAN_MESSAGE = MessageUtils.get(GwtNetIfStatus.netIPv4StatusEnabledLAN.name());
 	
 	private static NetworkTabsUiUiBinder uiBinder = GWT.create(NetworkTabsUiUiBinder.class);
-	private static final Logger logger = Logger.getLogger(NetworkTabsUi.class.getSimpleName());
 
 	interface NetworkTabsUiUiBinder extends UiBinder<Widget, NetworkTabsUi> {
 	}
@@ -54,14 +52,16 @@ public class NetworkTabsUi extends Composite {
 	AnchorListItem dhcpNatTab;
 	AnchorListItem wirelessTab;
 	AnchorListItem modemTab;
+	AnchorListItem modemGpsTab;
 	ArrayList<AnchorListItem> visibleTabs;
 
-	Tab selectedTab;
+	NetworkTab selectedTab;
 	TabHardwareUi hardware;
 	TabTcpIpUi tcpIp;
 	TabDhcpNatUi dhcpNat;
 	TabWirelessUi wireless;
 	TabModemUi modem;
+	TabModemGpsUi modemGps;
 
 	GwtNetInterfaceConfig netIfConfig;
 
@@ -88,6 +88,7 @@ public class NetworkTabsUi extends Composite {
 		wireless.setNetInterface(selection);
 		dhcpNat.setNetInterface(selection);
 		modem.setNetInterface(selection);
+		modemGps.setNetInterface(selection);
 
 		// set the tabs for this interface
 		removeInterfaceTabs();
@@ -116,6 +117,9 @@ public class NetworkTabsUi extends Composite {
 		if (visibleTabs.contains(modemTab)) {
 			modem.refresh();
 		}
+		if (visibleTabs.contains(modemGpsTab)) {
+			modemGps.refresh();
+		}
 	}
 
 	public boolean isDirty() {
@@ -134,7 +138,9 @@ public class NetworkTabsUi extends Composite {
 		if (modem != null && visibleTabs.contains(modemTab) && modem.isDirty()) {
 			return true;
 		}
-
+		if (modemGps != null && visibleTabs.contains(modemGpsTab) && modemGps.isDirty()) {
+			return true;
+		}
 		return false;
 	}
 
@@ -144,6 +150,7 @@ public class NetworkTabsUi extends Composite {
 		if (dhcpNat != null) dhcpNat.setDirty(b);
 		if (wireless != null) wireless.setDirty(b);
 		if (modem != null) modem.setDirty(b);
+		if (modemGps != null) modemGps.setDirty(b);
 	}
 
 	public void refresh() {
@@ -152,6 +159,7 @@ public class NetworkTabsUi extends Composite {
 		if (dhcpNat != null) dhcpNat.refresh();
 		if (wireless != null) wireless.refresh();
 		if (modem != null) modem.refresh();
+		if (modemGps != null) modemGps.refresh();
 	}
 
 	// Add/remove tabs based on the selected settings in the various tabs
@@ -160,9 +168,8 @@ public class NetworkTabsUi extends Composite {
 		boolean includeDhcpNat = !tcpIp.isDhcp() && netIfStatus.equals(IPV4_STATUS_ENABLED_LAN_MESSAGE);
 
 		if (netIfConfig instanceof GwtWifiNetInterfaceConfig) {
-			// insert Wifi tab
-			includeDhcpNat = true;
 			removeTab(modemTab);
+			removeTab(modemGpsTab);
 			insertTab(wirelessTab, 1);
 			if (!wirelessTab.isEnabled()) {
 				wirelessTab.setEnabled(true);
@@ -175,7 +182,7 @@ public class NetworkTabsUi extends Composite {
 			}
 		} else if (netIfConfig instanceof GwtModemInterfaceConfig) {
 			includeDhcpNat = false;
-			//modemTab.setEnabled(false);
+			
 			removeTab(wirelessTab);
 			removeTab(dhcpNatTab);
 			// insert Modem tab
@@ -183,10 +190,11 @@ public class NetworkTabsUi extends Composite {
 			if (!modemTab.isEnabled()) {
 				modemTab.setEnabled(true);
 			}
+			insertTab(modemGpsTab, 2);
 		} else {
 			removeTab(wirelessTab);
 			removeTab(modemTab);
-
+			removeTab(modemGpsTab);
 			if (netIfConfig.getHwTypeEnum() == GwtNetIfType.LOOPBACK || netIfConfig.getName().startsWith("mon.wlan")) {
 				removeTab(dhcpNatTab);
 			} else {
@@ -204,6 +212,14 @@ public class NetworkTabsUi extends Composite {
 		if (netIfStatus.equals(IPV4_STATUS_DISABLED_MESSAGE)) {
 			// disabled - remove tabs
 			disableInterfaceTabs();
+		}
+		
+		if (netIfConfig instanceof GwtModemInterfaceConfig) {
+			if (((GwtModemInterfaceConfig)netIfConfig).isGpsSupported()) {
+				modemGpsTab.setEnabled(true);
+			} else {
+				modemGpsTab.setEnabled(false);
+			}
 		}
 	}
 
@@ -237,11 +253,14 @@ public class NetworkTabsUi extends Composite {
 		if (visibleTabs.contains(modemTab)) {
 			modem.getUpdatedNetInterface(updatedNetIf);
 		}
+		if (visibleTabs.contains(modemGpsTab)) {
+			modemGps.getUpdatedNetInterface(updatedNetIf);
+		}
 		return updatedNetIf;
 	}
 
 	// return currently selected tab
-	public Tab getSelectedTab() {
+	public NetworkTab getSelectedTab() {
 		return selectedTab;
 
 	}
@@ -263,6 +282,9 @@ public class NetworkTabsUi extends Composite {
 			return false;
 		}
 		if (visibleTabs.contains(modemTab) && !modem.isValid()) {
+			return false;
+		}
+		if (visibleTabs.contains(modemGpsTab) && !modemGps.isValid()) {
 			return false;
 		}
 		return true;
@@ -308,18 +330,33 @@ public class NetworkTabsUi extends Composite {
 		// Modem
 		modemTab = new AnchorListItem(MSGS.netModemCellular());
 		visibleTabs.add(modemTab);
-		modem = new TabModemUi(session);
+		modem = new TabModemUi(session, tcpIp);
 		modemTab.addClickHandler(new ClickHandler() {
 			@Override
 			public void onClick(ClickEvent event) {
 				setSelected(modemTab);
-				modem.refresh();  //TODO: to check if needed here or can be invoked elsewhere
 				selectedTab = modem;
 				content.clear();
 				content.add(modem);
 			}
 		});
 		tabsPanel.add(modemTab);
+		
+		// Modem Gps
+		modemGpsTab = new AnchorListItem(MSGS.netModemGps());
+		visibleTabs.add(modemGpsTab);
+		modemGps = new TabModemGpsUi(session);
+		modemGpsTab.addClickHandler(new ClickHandler() {
+			@Override
+			public void onClick(ClickEvent event) {
+				setSelected(modemGpsTab);
+				modemGps.refresh();  //TODO: to check if needed here or can be invoked elsewhere
+				selectedTab = modemGps;
+				content.clear();
+				content.add(modemGps);
+			}
+		});
+		tabsPanel.add(modemGpsTab);
 
 		// DHCP and NAT
 		dhcpNatTab = new AnchorListItem(MSGS.netRouter());
@@ -368,6 +405,7 @@ public class NetworkTabsUi extends Composite {
 
 		wirelessTab.setEnabled(false);
 		modemTab.setEnabled(false);
+		modemGpsTab.setEnabled(false);
 		dhcpNatTab.setEnabled(false);
 	}
 
@@ -396,6 +434,7 @@ public class NetworkTabsUi extends Composite {
 
 		visibleTabs.remove(wirelessTab);
 		visibleTabs.remove(modemTab);
+		visibleTabs.remove(modemGpsTab);
 		visibleTabs.remove(dhcpNatTab);
 
 		tabsPanel.remove(wirelessTab);
@@ -410,6 +449,7 @@ public class NetworkTabsUi extends Composite {
 		dhcpNatTab.setActive(false);
 		wirelessTab.setActive(false);
 		modemTab.setActive(false);
+		modemGpsTab.setActive(false);
 		item.setActive(true);
 	}
 }

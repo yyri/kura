@@ -1,6 +1,6 @@
 <!--
 
-    Copyright (c) 2011, 2014 Eurotech and/or its affiliates
+    Copyright (c) 2011, 2016 Eurotech and/or its affiliates
 
      All rights reserved. This program and the accompanying materials
      are made available under the terms of the Eclipse Public License v1.0
@@ -123,10 +123,8 @@
                  token="{org.eclipse.kura.linux.watchdog.version}" value="${org.eclipse.kura.linux.watchdog.version}"/>
         <replace file="${project.build.directory}/${build.output.name}/config.ini"
                  token="{org.eclipse.kura.core.status.version}" value="${org.eclipse.kura.core.status.version}"/>
-        <!-- <propertyfile file="${project.build.directory}/${build.output.name}/config.ini">
-            <entry key="osgi.bundles" operation="+"
-                   value=", reference:file:${kura.install.dir}/kura/kura/plugins/org.eclipse.kura.net.admin_${org.eclipse.kura.net.admin.version}.jar@5:start" />
-        </propertyfile> -->
+
+		<antcall target="camel-config" />        
 
 		<!-- Conditional entries. Check for jar presence, and invoke relevant ant target-->
 		<available file="${project.build.directory}/plugins/org.eclipse.kura.web_${org.eclipse.kura.web.version}.jar" property="web.jar.present" />
@@ -445,7 +443,7 @@ fi
             <zipfileset dir="${kura.osgi.repo}/plugins/"
                         prefix="${build.output.name}/plugins"/>
 
-            <zipfileset dir="../target-definition/common/repository/plugins" excludes="com.google.protobuf_2.6.0.jar,org.eclipse.paho.*"
+            <zipfileset dir="../target-definition/common/repository/plugins" excludes="com.google.protobuf_2.6.0.jar,org.eclipse.paho.*,com.gwt.user_*"
                         prefix="${build.output.name}/plugins"/>
 
 
@@ -494,6 +492,8 @@ fi
 			<!--<zipfileset file="${project.build.directory}/plugins/org.eclipse.kura.net.admin_${org.eclipse.kura.net.admin.version}.jar"
                         prefix="${build.output.name}/kura/plugins" /> -->
         </zip>
+        
+        <antcall target="camel-jar" />
 		
 		<!-- Conditional inclusion of jar files in the distribution jar -->
 		<antcall target="web-jar" />
@@ -613,6 +613,13 @@ Resource-Processor: org.eclipse.kura.deployment.customizer.upgrade.rp.UpgradeScr
         </propertyfile>
     </target>
 
+	<target name="camel-config">
+		<propertyfile file="${project.build.directory}/${build.output.name}/config.ini">
+            	<entry key="osgi.bundles" operation="+"
+                   value=", reference:file:${kura.install.dir}/kura/kura/plugins/org.eclipse.kura.camel_${org.eclipse.kura.camel.version}.jar@4:start" />
+        </propertyfile>
+	</target>
+
 	<target name="web-config" if="web.jar.present">
 		<propertyfile file="${project.build.directory}/${build.output.name}/config.ini">
             	<entry key="osgi.bundles" operation="+"
@@ -635,11 +642,20 @@ Resource-Processor: org.eclipse.kura.deployment.customizer.upgrade.rp.UpgradeScr
 				value=", reference:file:${kura.install.dir}/kura/kura/plugins/org.eclipse.kura.linux.gpio_${org.eclipse.kura.linux.gpio.version}.jar@5:start" />
 		</propertyfile>
 	</target>
+	
+	<target name="camel-jar">
+		<zip destfile="${project.build.directory}/${build.output.name}.zip" update="true">
+			<zipfileset file="${project.build.directory}/plugins/org.eclipse.kura.camel_${org.eclipse.kura.camel.version}.jar"
+                        prefix="${build.output.name}/kura/plugins" />
+		</zip>
+	</target>
 
 	<target name="web-jar" if="web.jar.present">
 		<zip destfile="${project.build.directory}/${build.output.name}.zip" update="true">
 			<zipfileset file="${project.build.directory}/plugins/org.eclipse.kura.web_${org.eclipse.kura.web.version}.jar"
                         prefix="${build.output.name}/kura/plugins" />
+            <zipfileset file="../target-definition/common/repository/plugins/com.gwt.user_0.2.0.jar"
+                        prefix="${build.output.name}/plugins" />
 		</zip>
 	</target>
 
@@ -647,6 +663,8 @@ Resource-Processor: org.eclipse.kura.deployment.customizer.upgrade.rp.UpgradeScr
 		<zip destfile="${project.build.directory}/${build.output.name}.zip" update="true">
 			<zipfileset file="${project.build.directory}/plugins/org.eclipse.kura.web2_${org.eclipse.kura.web2.version}.jar"
                         prefix="${build.output.name}/kura/plugins" />
+            <zipfileset file="../target-definition/common/repository/plugins/com.gwt.user_1.0.0.jar"
+                        prefix="${build.output.name}/plugins" />
 		</zip>
 	</target>
 	

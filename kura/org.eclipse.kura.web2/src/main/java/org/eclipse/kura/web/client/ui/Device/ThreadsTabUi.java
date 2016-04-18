@@ -22,7 +22,7 @@ import org.eclipse.kura.web.shared.service.GwtDeviceService;
 import org.eclipse.kura.web.shared.service.GwtDeviceServiceAsync;
 import org.eclipse.kura.web.shared.service.GwtSecurityTokenService;
 import org.eclipse.kura.web.shared.service.GwtSecurityTokenServiceAsync;
-import org.gwtbootstrap3.client.ui.gwt.DataGrid;
+import org.gwtbootstrap3.client.ui.gwt.CellTable;
 
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.uibinder.client.UiBinder;
@@ -39,14 +39,14 @@ public class ThreadsTabUi extends Composite {
 
 	interface ThreadsTabUiUiBinder extends UiBinder<Widget, ThreadsTabUi> {
 	}
-	
+
 	private static final Messages MSGS = GWT.create(Messages.class);
 
 	private final GwtSecurityTokenServiceAsync gwtXSRFService = GWT.create(GwtSecurityTokenService.class);
 	private final GwtDeviceServiceAsync gwtDeviceService = GWT.create(GwtDeviceService.class);
-	
+
 	@UiField
-	DataGrid<GwtGroupedNVPair> threadsGrid = new DataGrid<GwtGroupedNVPair>();
+	CellTable<GwtGroupedNVPair> threadsGrid = new CellTable<GwtGroupedNVPair>();
 	private ListDataProvider<GwtGroupedNVPair> threadsDataProvider = new ListDataProvider<GwtGroupedNVPair>();
 
 
@@ -55,12 +55,12 @@ public class ThreadsTabUi extends Composite {
 		loadProfileTable(threadsGrid, threadsDataProvider);
 		//loadThreadsData();
 	}
-	
-	
-	private void loadProfileTable(DataGrid<GwtGroupedNVPair> grid,
-			
+
+
+	private void loadProfileTable(CellTable<GwtGroupedNVPair> threadsGrid2,
+
 			ListDataProvider<GwtGroupedNVPair> dataProvider) {
-						
+
 		TextColumn<GwtGroupedNVPair> col1 = new TextColumn<GwtGroupedNVPair>() {
 			@Override
 			public String getValue(GwtGroupedNVPair object) {
@@ -68,7 +68,7 @@ public class ThreadsTabUi extends Composite {
 			}
 		};
 		col1.setCellStyleNames("status-table-row");
-		grid.addColumn(col1, MSGS.deviceThreadName());
+		threadsGrid2.addColumn(col1, MSGS.deviceThreadName());
 
 		TextColumn<GwtGroupedNVPair> col2 = new TextColumn<GwtGroupedNVPair>() {
 			@Override
@@ -77,48 +77,48 @@ public class ThreadsTabUi extends Composite {
 			}
 		};
 		col2.setCellStyleNames("status-table-row");
-		grid.addColumn(col2, MSGS.deviceThreadInfo());
+		threadsGrid2.addColumn(col2, MSGS.deviceThreadInfo());
 
-		dataProvider.addDataDisplay(grid);
+		dataProvider.addDataDisplay(threadsGrid2);
 	}
 
 	public void loadThreadsData() {
 		threadsDataProvider.getList().clear();
-	
+
 		EntryClassUi.showWaitModal();
 		gwtXSRFService.generateSecurityToken(new AsyncCallback<GwtXSRFToken> () {
-	
+
 			@Override
 			public void onFailure(Throwable ex) {
 				EntryClassUi.hideWaitModal();
 				FailureHandler.handle(ex);
 			}
-	
+
 			@Override
 			public void onSuccess(GwtXSRFToken token) {
 				gwtDeviceService.findThreads(token, new AsyncCallback<ArrayList<GwtGroupedNVPair>>() {
-	
+
 					@Override
 					public void onFailure(Throwable caught) {
 						EntryClassUi.hideWaitModal();
 						threadsDataProvider.getList().clear();
 						FailureHandler.handle(caught);
 						threadsDataProvider.flush();
-	
+
 					}
-	
+
 					@Override
 					public void onSuccess(ArrayList<GwtGroupedNVPair> result) {
 						for (GwtGroupedNVPair resultPair : result) {
 							threadsDataProvider.getList().add(resultPair);
-						}						
+						}		
+						int size= threadsDataProvider.getList().size();
+						threadsGrid.setVisibleRange(0, size);
 						threadsDataProvider.flush();
 						EntryClassUi.hideWaitModal();
 					}
-	
 				});
 			}
-			
 		});
 	}
 }
