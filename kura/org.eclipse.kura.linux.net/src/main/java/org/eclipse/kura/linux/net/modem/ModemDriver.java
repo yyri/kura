@@ -165,15 +165,15 @@ public class ModemDriver {
 				echoSysfsResource(RELIAGATE_10_05_GSM_USB_PATH, true);
 				
 				// wait until the modem is on again
-				// isOn uses lsusb that is not supported on the Reliagate 10-05
-//				int cnt = 10;
-//				while (!isOn() && cnt > 0) {
-//					sleep(1000);
-//					cnt--;
-//				}
-//				if (!isOn()) {
-//					retVal = false;
-//				}
+				// some modems on the Reliagate10-05 aren't usb devices...
+				int cnt = 10;
+				while (!isOn() && cnt > 0) {
+					sleep(1000);
+					cnt--;
+				}
+				if (!isOn()) {
+					retVal = false;
+				}
 			} catch (Exception e) {
 				retVal = false;
 			}

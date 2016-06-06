@@ -41,7 +41,7 @@ public class SupportedUsbModemsFactoryInfo {
 		Sierra_MC8775    (SupportedUsbModemInfo.Sierra_MC8775, SierraMc87xxModemFactory.class, SierraMc87xxConfigGenerator.class),
 		Sierra_MC8790    (SupportedUsbModemInfo.Sierra_MC8790, SierraMc87xxModemFactory.class, SierraMc87xxConfigGenerator.class),
 		Sierra_USB598    (SupportedUsbModemInfo.Sierra_USB598, SierraUsb598ModemFactory.class, SierraUsb598ConfigGenerator.class),
-		Ublox_SARA_U2    (SupportedUsbModemInfo.Ublox_SARA_U2, UbloxModemFactory.class, HspaModemConfigGenerator.class);
+		Ublox_LISA_SARA_U2    (SupportedUsbModemInfo.Ublox_LISA_SARA_U2, UbloxModemFactory.class, HspaModemConfigGenerator.class);
 	
 		private SupportedUsbModemInfo m_usbModemInfo;
 		private Class<? extends CellularModemFactory> m_factoryClass;
