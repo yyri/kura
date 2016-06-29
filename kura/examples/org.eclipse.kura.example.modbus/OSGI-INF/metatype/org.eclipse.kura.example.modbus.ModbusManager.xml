@@ -123,6 +123,14 @@
             default=""
             max="65535"
             description="Configuration parameters file for modbus communication."/>
+            
+        <AD id="enable.filter"
+            name="enable.filter"
+            type="Boolean"
+            cardinality="0"
+            required="true"
+            default="false"
+            description="Enable data filtering." />
          
     </OCD>
     <Designate pid="org.eclipse.kura.example.modbus.ModbusManager">
