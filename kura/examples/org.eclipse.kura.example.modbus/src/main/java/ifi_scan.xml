@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<scan>
+    <disabled>true</disabled>
+    <interval>60000</interval>
+    <range>
+        <min>1</min>
+        <max>255</max>
+    </range>
+
+    <assets>
+        <asset>
+            <id>1</id>
+            <model>xw764k</model>
+        </asset>
+        <asset>
+            <id>2</id>
+            <model>xw60lrt</model>
+        </asset>
+        <asset>
+            <id>11</id>
+            <model>xw60lrt</model>
+        </asset>
+    </assets>
+
+    <!-- exclude the following assets, from scan and poll -->
+    <blacklist>5, 32</blacklist>
+
+</scan>

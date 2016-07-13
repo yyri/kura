@@ -3,45 +3,44 @@ package org.eclipse.kura.example.modbus;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.eclipse.kura.example.modbus.register.ModbusResources;
+
 public class ModbusConfiguration {
 	
-	private String topic = "";
+	private String name = "";
 	private int interval = 0;
-	private String type = "polling";
-	private ArrayList<Metric> metrics;
+	private ArrayList<ModbusResources> registers;
 	
 	public ModbusConfiguration() {
-		this.topic = "";
+		this.name = "";
 		this.interval = 0;
-		this.type = "polling";
-		this.metrics = new ArrayList<Metric>();
+		this.registers = new ArrayList<ModbusResources>();
 	}
 	
-	public ModbusConfiguration(String topic, int interval, String type) {
-		this.topic = topic;
+	public ModbusConfiguration(String name, int interval) {
+		this.name = name;
 		this.interval = interval;
-		this.type = type;
-		this.metrics = new ArrayList<Metric>(); 
+		this.registers = new ArrayList<ModbusResources>();
 	}
 	
-	public void addMetric(Metric metric) {
-		this.metrics.add(metric);
+	public void addRegister(ModbusResources register) {
+		this.registers.add(register);
 	}
 	
-	public void addMetrics(List<Metric> metrics) {
-		this.metrics.addAll(metrics);
+	public void addRegisters(List<ModbusResources> registers) {
+		this.registers.addAll(registers);
 	}
 
-	public List<Metric> getMetrics() {
-		return this.metrics;
-	}
-	
-	public String getTopic() {
-		return topic;
+	public List<ModbusResources> getRegisters() {
+		return this.registers;
 	}
 
-	public void setTopic(String topic) {
-		this.topic = topic;
+	public String getName() {
+		return this.name;
+	}
+
+	public void setName(String name) {
+		this.name = name;
 	}
 
 	public int getInterval() {
@@ -52,18 +51,9 @@ public class ModbusConfiguration {
 		this.interval = interval;
 	}
 
-	public String getType() {
-		return type;
-	}
-
-	public void setType(String type) {
-		this.type = type;
-	}
-	
 	public void clear() {
-		this.topic = "";
+		this.name = "";
 		this.interval = 0;
-		this.type = "polling";
-		this.metrics.clear(); 
+		this.registers.clear();
 	}
 }

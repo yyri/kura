@@ -114,23 +114,24 @@
             <Option label="Mark" value="3"/>
             <Option label="Space" value="4"/>
         </AD>
-            
-        <AD id="modbus.variables.file"
-            name="modbus.variables.file"
+
+        <AD id="plc.scan"
+            name="plc.scan"
             type="String"
             cardinality="0"
             required="true"
             default=""
             max="65535"
-            description="Configuration parameters file for modbus communication."/>
-            
-        <AD id="enable.filter"
-            name="enable.filter"
-            type="Boolean"
+            description="Configuration parameters for the PLC scan.&#x200b;&#x200b;&#x200b;&#x200b;&#x200b;"/>
+                        
+        <AD id="plc.configuration"
+            name="plc.configuration"
+            type="String"
             cardinality="0"
             required="true"
-            default="false"
-            description="Enable data filtering." />
+            default=""
+            max="65535"
+            description="Configuration parameters for the PLCs.&#x200b;&#x200b;&#x200b;&#x200b;&#x200b;"/>
          
     </OCD>
     <Designate pid="org.eclipse.kura.example.modbus.ModbusManager">

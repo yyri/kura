@@ -11,16 +11,13 @@
  *******************************************************************************/
 package org.eclipse.kura.example.modbus;
 
-
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
-import java.util.Scanner;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -29,6 +26,10 @@ import org.eclipse.kura.cloud.CloudClient;
 import org.eclipse.kura.cloud.CloudClientListener;
 import org.eclipse.kura.cloud.CloudService;
 import org.eclipse.kura.configuration.ConfigurableComponent;
+import org.eclipse.kura.example.modbus.parser.ModbusConfigParser;
+import org.eclipse.kura.example.modbus.parser.ScannerConfig;
+import org.eclipse.kura.example.modbus.parser.ScannerConfigParser;
+import org.eclipse.kura.example.modbus.register.ModbusResources;
 import org.eclipse.kura.message.KuraPayload;
 import org.eclipse.kura.protocol.modbus.ModbusProtocolDeviceService;
 import org.eclipse.kura.protocol.modbus.ModbusProtocolException;
@@ -41,7 +42,8 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 	private static final Logger s_logger = LoggerFactory.getLogger(ModbusManager.class);
 
 	private static final String APP_ID = "ModbusManager";
-	private static final String PROP_MODBUS_CONF = "modbus.variables.file";
+	private static final String PROP_MODBUS_CONF = "plc.configuration";
+	private static final String PROP_MODBUS_SCAN = "plc.scan";
 	private static final String PROP_SERIAL_MODE = "serialMode";
 	private static final String PROP_PORT = "port";
 	private static final String PROP_IP = "ipAddress";
@@ -49,51 +51,54 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 	private static final String PROP_BITPERWORD = "bitsPerWord";
 	private static final String PROP_STOPBITS = "stopBits";
 	private static final String PROP_PARITY = "parity";
-	private static final String PROP_FILTER = "enable.filter";
-	
+
 	private static final String CTRL_TOPIC = "/command";
 
-	private CloudService m_cloudService;
-	private CloudClient m_cloudClient;
-	public static ModbusProtocolDeviceService m_protocolDevice;
+	private CloudService cloudService;
+	private CloudClient cloudClient;
+	public static ModbusProtocolDeviceService protocolDevice;
 
-	private ScheduledExecutorService m_executor;
+	private ScheduledExecutorService executor;
 
-	private Map<String, Object> m_properties;
+	private Map<String, Object> currentProperties;
 	private static Properties modbusProperties;
-	
+
 	private boolean configured;
 
-	private List<ModbusWorker> m_workers = new ArrayList<ModbusWorker>();
+	private Map<String,List<Integer>> devices;
+	private Map<String,ModbusConfiguration> pollGroups;
+	private Map<String,PublishConfiguration> publishGroups;
+
+	private List<ModbusWorker> workers = new ArrayList<ModbusWorker>();
 
 	public ModbusManager() {
-		m_executor = Executors.newScheduledThreadPool(5);
+		executor = Executors.newScheduledThreadPool(5);
 	}
 
 	protected void setCloudService(CloudService cloudService) {
-		m_cloudService = cloudService;
+		this.cloudService = cloudService;
 	}
 
 	protected void unsetCloudService(CloudService cloudService) {
-		m_cloudService = null;
+		this.cloudService = null;
 	}
 
 	public void setModbusProtocolDeviceService(ModbusProtocolDeviceService modbusService) {
-		this.m_protocolDevice = modbusService;
+		this.protocolDevice = modbusService;
 	}
-	
+
 	public void unsetModbusProtocolDeviceService(ModbusProtocolDeviceService modbusService) {
-		this.m_protocolDevice = null;
+		this.protocolDevice = null;
 	}
-	
+
 	protected void activate(ComponentContext ctx, Map<String, Object> properties) {
 		s_logger.info("Activating ModbusManager...");
 
 		configured = false;
-		
+
 		try {
-			m_cloudClient = m_cloudService.newCloudClient(APP_ID);
-			m_cloudClient.addCloudClientListener(this);
+			cloudClient = cloudService.newCloudClient(APP_ID);
+			cloudClient.addCloudClientListener(this);
 			updated(ctx, properties);
 		} catch (KuraException e) {
 			s_logger.error("Configuration update failed", e);
@@ -103,30 +108,30 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 	protected void deactivate(ComponentContext ctx) {
 		s_logger.info("Deactivating ModbusManager...");
 
-		for (ModbusWorker w : m_workers) {
+		for (ModbusWorker w : workers) {
 			w.stop();
 		}
-		m_workers.clear();
+		workers.clear();
 
-		if (m_executor != null)
-			m_executor.shutdown();
-		
-		if(m_protocolDevice!=null)
+		if (executor != null)
+			executor.shutdown();
+
+		if(protocolDevice!=null)
 			try {
-				m_protocolDevice.disconnect();
+				protocolDevice.disconnect();
 			} catch (ModbusProtocolException e) {
 				s_logger.error("Unable to disconnect from modbus device.", e);
 			}
-		
+
 		configured = false;
-		
-		m_cloudClient.release();
+
+		cloudClient.release();
 	}
 
 	protected void updated(ComponentContext ctx, Map<String, Object> properties) {
 		s_logger.info("Updating ModbusManager...");
 
-		m_properties = properties;
+		currentProperties = properties;
 		modbusProperties = getModbusProperties();
 		configured=false;
 
@@ -136,10 +141,10 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 
 	private void doWork() {
 
-		for (ModbusWorker w : m_workers) {
+		for (ModbusWorker w : workers) {
 			w.stop();
 		}
-		m_workers.clear();
+		workers.clear();
 
 		new Thread(new Runnable() {
 
@@ -152,9 +157,11 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 						s_logger.warn("The modbus port is not yet available", e);
 					}
 				}
-				
+
 				if (configured) {
+					searchForDevices();
 					parseConfiguration();
+					s_logger.info("Configuration done!");
 				}
 			}
 		}).start();
@@ -166,80 +173,178 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 			@SuppressWarnings("unchecked")
 			Map<String, Object> map = (Map<String, Object>) e;
 			s_logger.info("Publishing data for:");
+			//			for (Entry<String,Object> entry : map.entrySet()) {
+			//				s_logger.info("		{} = {}", entry.getKey(), entry.getValue());
+			//			}
+			//			publishMessage(map, topic);
+			// Custom filter for test purposes only!!!
+			Map<String,Object> filteredMap = new HashMap<String,Object>();
 			for (Entry<String,Object> entry : map.entrySet()) {
-				s_logger.info("		{} = {}", entry.getKey(), entry.getValue());
-			}
-			if ((Boolean) m_properties.get(PROP_FILTER)) 
-				filter(map);
-			publishMessage(map, topic);
+				if (entry.getKey().equals("Room") || entry.getKey().equals("Evaporator") || entry.getKey().equals("SetPoint")) {
+					float[] data = {((int[]) entry.getValue())[0]*0.1F};
+					filteredMap.put(entry.getKey(), data);
+					s_logger.info("		{} = {}", entry.getKey(), data[0]);
+				} 
+				else if (entry.getKey().equals("DigitalOutput")) {
+					int data = ((int[]) entry.getValue())[0];
+					if ((data & 0x0100) == 0x0100) {
+						boolean[] output = {true};
+						filteredMap.put("OnOffOut", output);
+						s_logger.info("		{} = {}", "OnOffOut", output);
+					} else {
+						boolean[] output = {false};
+						filteredMap.put("OnOffOut", output);
+						s_logger.info("		{} = {}", "OnOffOut", output);
+					}
+					if ((data & 0x0200) == 0x0200) {
+						boolean[] output = {true};
+						filteredMap.put("Defrost", output);
+						s_logger.info("		{} = {}", "Defrost", output);
+					} else {
+						boolean[] output = {false};
+						filteredMap.put("Defrost", output);
+						s_logger.info("		{} = {}", "Defrost", output);
+					}
+					if ((data & 0x0400) == 0x0400) {
+						boolean[] output = {true};
+						filteredMap.put("Defrost2", output);
+						s_logger.info("		{} = {}", "Defrost2", output);
+					} else {
+						boolean[] output = {false};
+						filteredMap.put("Defrost2", output);
+						s_logger.info("		{} = {}", "Defrost2", output);
+					}
+					if ((data & 0x0800) == 0x0800) {
+						boolean[] output = {true};
+						filteredMap.put("Alarm", output);
+						s_logger.info("		{} = {}", "Alarm", output);
+					} else {
+						boolean[] output = {false};
+						filteredMap.put("Alarm", output);
+						s_logger.info("		{} = {}", "Alarm", output);
+					}
+					if ((data & 0x1000) == 0x1000) {
+						boolean[] output = {true};
+						filteredMap.put("Light", output);
+						s_logger.info("		{} = {}", "Light", output);
+					} else {
+						boolean[] output = {false};
+						filteredMap.put("Light", output);
+						s_logger.info("		{} = {}", "Light", output);
+					}
+					if ((data & 0x2000) == 0x2000) {
+						boolean[] output = {true};
+						filteredMap.put("Fan", output);
+						s_logger.info("		{} = {}", "Fan", output);
+					} else {
+						boolean[] output = {false};
+						filteredMap.put("Fan", output);
+						s_logger.info("		{} = {}", "Fan", output);
+					}
+					if ((data & 0x4000) == 0x4000) {
+						boolean[] output = {true};
+						filteredMap.put("Aux", output);
+						s_logger.info("		{} = {}", "Aux", output);
+					} else {
+						boolean[] output = {false};
+						filteredMap.put("Aux", output);
+						s_logger.info("		{} = {}", "Aux", output);
+					}
+				}
+				else if (entry.getKey().equals("Pb1")) {
+					int data = ((int[]) entry.getValue())[0];
+					if ((data & 0x0003) == 0x0001) {
+						filteredMap.put("Pb1", "LowValuePb1");
+						s_logger.info("		{} = {}", "Pb1", "LowValuePb1");
+					} else if ((data & 0x0003) == 0x0002) {
+						filteredMap.put("Pb1", "HighValuePb1");
+						s_logger.info("		{} = {}", "Pb1", "HighValuePb1");
+					} else if ((data & 0x0003) == 0x0003) {
+						filteredMap.put("Pb1", "ErrorPb1");
+						s_logger.info("		{} = {}", "Pb1", "ErrorPb1");
+					}
+				}
+				else if (entry.getKey().equals("Pb2")) {
+					int data = ((int[]) entry.getValue())[0];
+					if ((data & 0x0003) == 0x0001) {
+						filteredMap.put("Pb2", "LowValuePb2");
+						s_logger.info("		{} = {}", "Pb2", "LowValuePb2");
+					} else if ((data & 0x0003) == 0x0002) {
+						filteredMap.put("Pb2", "HighValuePb2");
+						s_logger.info("		{} = {}", "Pb2", "LowValuePb2");
+					} else if ((data & 0x0003) == 0x0003) {
+						filteredMap.put("Pb2", "ErrorPb2");
+						s_logger.info("		{} = {}", "Pb2", "LowValuePb2");
+					}
+				}
+				else if (entry.getKey().equals("Alarms")) {
+					int data = ((int[]) entry.getValue())[0];
+					if ((data & 0x0800) == 0x0800) {
+						filteredMap.put("Alarms", "OpenDoor");
+						s_logger.info("		{} = {}", "Alarms", "OpenDoor");
+					} else if ((data & 0x1000) == 0x1000) {
+						filteredMap.put("Alarms", "SevereAlarm");
+						s_logger.info("		{} = {}", "Alarms", "SevereAlarm");
+					} else if ((data & 0x2000) == 0x2000) {
+						filteredMap.put("Alarms", "RTCFailure");
+						s_logger.info("		{} = {}", "Alarms", "RTCFailure");
+					} else if ((data & 0x4000) == 0x4000) {
+						filteredMap.put("Alarms", "EEPROMFailure");
+						s_logger.info("		{} = {}", "Alarms", "EEPROMFailure");
+					}
+				}
+			}			
+			publishMessage(filteredMap, topic);
 		}
 	}
 
 	private void parseConfiguration() {
-		// The modbus variables have the following syntax
-		//		interval=;
-		//		type=event|polling;
-		//		<metricName>=slaveAddress,functionCode,registerAddress,length,topic;
-		//		<metricName>=slaveAddress,functionCode,registerAddress,length,topic;
-		//		...
-		//		#
+
+		ModbusConfigParser.parse((String) currentProperties.get(PROP_MODBUS_CONF));
 		
-		File configurationFile = new File((String) m_properties.get(PROP_MODBUS_CONF));
-		Scanner scanner = null;
-		try {
-			scanner = new Scanner(configurationFile);
-			ModbusConfiguration config = new ModbusConfiguration();
-			while (scanner.hasNextLine()) {
-				String line = scanner.nextLine();
-				String[] tokens = line.split(";");
-				String[] keyValue;
-				String[] values;
-				for (String token : tokens) {
-					if (line.trim().isEmpty()) {
-						continue;
-					} else if (token.startsWith("#")) {
-						if (isConfigured(config)) {
-							m_workers.add(new ModbusWorker(config, m_executor, this));
-						} else {
-							s_logger.warn("Modbus configuration not correct.");
-						}
-						config.clear();
-					} else if (token.toLowerCase().startsWith("interval")) {
-						keyValue = token.split("=");
-						if (keyValue.length == 2)
-							config.setInterval(Integer.parseInt(keyValue[1]));
-					} else if (token.toLowerCase().startsWith("type")) {
-						keyValue = token.split("=");
-						if ((keyValue.length == 2) && ("event".equals(keyValue[1]) || "polling".equals(keyValue[1])))
-							config.setType(keyValue[1]);
-					} else {
-						keyValue = token.split("=");
-						if (keyValue.length == 2) {
-							values = keyValue[1].split(",");
-							Metric m = new Metric(keyValue[0], Integer.parseInt(values[0]), Integer.parseInt(values[1]), Integer.parseInt(values[2]), Integer.parseInt(values[3]));
-							config.addMetric(m);
-							String topic = values[4].trim().toLowerCase();
-							config.setTopic(topic);
-							m_cloudClient.controlSubscribe(topic + CTRL_TOPIC, 0);
-						}
-					}
-				}
-			}
-		} catch (FileNotFoundException e) {
-			s_logger.error("Configuration file not found", e);
-		} catch (KuraException e) {
-			s_logger.error("Unable to subscribe to control topic", e);
-		} finally {
-			if (scanner != null)
-				scanner.close();
+		// Get Poll Groups
+		if (pollGroups == null) {
+			pollGroups = new HashMap<String,ModbusConfiguration>();
 		}
+		pollGroups.clear();
+
+		List<ModbusConfiguration> modbusConfigurations = ModbusConfigParser.getPollGroups();
+		for (ModbusConfiguration config : modbusConfigurations) {
+			pollGroups.put(config.getName(), config);
+		}
+		
+		if (pollGroups.isEmpty()) {
+			s_logger.warn("No pollGroups found!");
+			return;
+		}
+		
+		// Get Modbus Configuration
+		Map<String, List<ModbusResources>> modbusResources = ModbusConfigParser.getModbusResources(devices);
+		for (Entry<String, List<ModbusResources>> entry : modbusResources.entrySet()) {
+			if (pollGroups.get(entry.getKey()) != null) {
+				pollGroups.get(entry.getKey()).addRegisters(entry.getValue());
+			}
+			
+		}
+		
+		// Get Publish Groups
+		if (publishGroups == null) {
+			publishGroups = new HashMap<String,PublishConfiguration>();
+		}
+		publishGroups.clear();
+
+		List<PublishConfiguration> publishConfigurations = ModbusConfigParser.getPublishGroups();
+		for (PublishConfiguration config : publishConfigurations) {
+			publishGroups.put(config.getName(), config);
+		}
+		
 	}
 
 	private boolean isConfigured(ModbusConfiguration config) {
-		if (config.getInterval() != 0 && !config.getTopic().isEmpty() && !config.getType().isEmpty() && !config.getMetrics().isEmpty())
+//		if (config.getInterval() != 0 && !config.getTopic().isEmpty() && !config.getType().isEmpty() && !config.getMetrics().isEmpty())
 			return true;
-		else
-			return false;
+//		else
+//			return false;
 	}
 	
 	private void publishMessage(Map<String, Object> props, String topic){
@@ -273,11 +378,13 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 						payload.addMetric(entry.getKey() + "." + i, ((float[]) entry.getValue())[i]);
 					}
 				}
+			} else {
+				payload.addMetric(entry.getKey(), (String) entry.getValue());
 			}
 		}
 		
 		try {
-			m_cloudClient.publish(topic, payload, qos, retain);
+			cloudClient.publish(topic, payload, qos, retain);
 		} catch (KuraException e) {
 			s_logger.error("Unable to publish message", e);
 		}
@@ -287,7 +394,7 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 	private Properties getModbusProperties() {
 		Properties prop = new Properties();
 
-		if(m_properties!=null){
+		if(currentProperties!=null){
 			String portName = null;
 			String serialMode = null;
 			String baudRate = null;
@@ -297,24 +404,24 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 			String ipAddress = null;
 			String mode= null;
 			String timeout= null;
-			if(m_properties.get("transmissionMode") != null) 
-				mode = (String) m_properties.get("transmissionMode");
-			if(m_properties.get("respTimeout") != null) 
-				timeout	= (String) m_properties.get("respTimeout");
-			if(m_properties.get(PROP_PORT) != null) 
-				portName = (String) m_properties.get(PROP_PORT);
-			if(m_properties.get(PROP_SERIAL_MODE) != null) 
-				serialMode = (String) m_properties.get(PROP_SERIAL_MODE);
-			if(m_properties.get(PROP_BAUDRATE) != null) 
-				baudRate = (String) m_properties.get(PROP_BAUDRATE);
-			if(m_properties.get(PROP_BITPERWORD) != null) 
-				bitsPerWord = (String) m_properties.get(PROP_BITPERWORD);
-			if(m_properties.get(PROP_STOPBITS) != null) 
-				stopBits = (String) m_properties.get(PROP_STOPBITS);
-			if(m_properties.get(PROP_PARITY) != null) 
-				parity = (String) m_properties.get(PROP_PARITY);
-			if(m_properties.get(PROP_IP) != null) 
-				ipAddress = (String) m_properties.get(PROP_IP);
+			if(currentProperties.get("transmissionMode") != null) 
+				mode = (String) currentProperties.get("transmissionMode");
+			if(currentProperties.get("respTimeout") != null) 
+				timeout	= (String) currentProperties.get("respTimeout");
+			if(currentProperties.get(PROP_PORT) != null) 
+				portName = (String) currentProperties.get(PROP_PORT);
+			if(currentProperties.get(PROP_SERIAL_MODE) != null) 
+				serialMode = (String) currentProperties.get(PROP_SERIAL_MODE);
+			if(currentProperties.get(PROP_BAUDRATE) != null) 
+				baudRate = (String) currentProperties.get(PROP_BAUDRATE);
+			if(currentProperties.get(PROP_BITPERWORD) != null) 
+				bitsPerWord = (String) currentProperties.get(PROP_BITPERWORD);
+			if(currentProperties.get(PROP_STOPBITS) != null) 
+				stopBits = (String) currentProperties.get(PROP_STOPBITS);
+			if(currentProperties.get(PROP_PARITY) != null) 
+				parity = (String) currentProperties.get(PROP_PARITY);
+			if(currentProperties.get(PROP_IP) != null) 
+				ipAddress = (String) currentProperties.get(PROP_IP);
 			
 			if(portName==null)
 				return null;		
@@ -358,21 +465,12 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 	}
 	
 	private void configureDevice() throws ModbusProtocolException {
-		if(m_protocolDevice!=null){
-			m_protocolDevice.disconnect();
+		if(protocolDevice!=null){
+			protocolDevice.disconnect();
 
-			m_protocolDevice.configureConnection(modbusProperties);
+			protocolDevice.configureConnection(modbusProperties);
 
 			configured = true;
-		}
-	}
-	
-	private void filter(Map<String, Object> map) {
-		if (map.get("room") != null) {
-			int offset = 0;
-			float gain = 0.1f;
-			float[] room_filtered = {(((int[]) map.get("room"))[0] + offset) * gain};
-			map.put("room_filtered", room_filtered);
 		}
 	}
 
@@ -401,11 +499,11 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 	}
 	
 	private synchronized void writeMultipleRegister(int unitAddr, int dataAddress, int[] data) throws ModbusProtocolException {
-		ModbusManager.m_protocolDevice.writeMultipleRegister(unitAddr, dataAddress, data);
+		ModbusManager.protocolDevice.writeMultipleRegister(unitAddr, dataAddress, data);
 	}
 
 	private synchronized void writeSingleRegister(int unitAddr, int dataAddress, int data) throws ModbusProtocolException {
-		ModbusManager.m_protocolDevice.writeSingleRegister(unitAddr, dataAddress, data);
+		ModbusManager.protocolDevice.writeSingleRegister(unitAddr, dataAddress, data);
 	}
 	
 	@Override
@@ -433,331 +531,45 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 		// Not implemented
 	}
 	
-}
+	private void searchForDevices() {
+		if (devices == null) {
+			devices = new HashMap<String,List<Integer>>();
+		}
+		devices.clear();
+		
+		ScannerConfig scannerConfig = ScannerConfigParser.parse(new String((String) currentProperties.get(PROP_MODBUS_SCAN)));
+		
+		if (scannerConfig.getDisabled()) {
+			getStaticDevices(scannerConfig);
+		} else {
+			scanForDevices(scannerConfig);
+		}
+		
+		for (Entry<String,List<Integer>> device : devices.entrySet()) {
+			for (Integer address : device.getValue())
+				s_logger.debug("Get device " + device.getKey() + " " + address);
+		}
+		
+	}
 
-//public class ModbusManager implements ConfigurableComponent, KuraChangeListener {
-//
-//	private static final Logger s_logger = LoggerFactory.getLogger(ModbusManager.class);
-//
-//	private static final String APP_ID = "ModbusManager";
-//	private static final String PROP_MODBUS_CONF = "modbus.variables.file";
-//	private static final String PROP_SERIAL_MODE = "serialMode";
-//	private static final String PROP_PORT = "port";
-//	private static final String PROP_IP = "ipAddress";
-//	private static final String PROP_BAUDRATE = "baudRate";
-//	private static final String PROP_BITPERWORD = "bitsPerWord";
-//	private static final String PROP_STOPBITS = "stopBits";
-//	private static final String PROP_PARITY = "parity";
-//	private static final String PROP_FILTER = "enable.filter";
-//
-//	private CloudService m_cloudService;
-//	private CloudClient m_cloudClient;
-//	public static ModbusProtocolDeviceService m_protocolDevice;
-//
-//	private ScheduledExecutorService m_executor;
-//
-//	private Map<String, Object> m_properties;
-//	private static Properties modbusProperties;
-//	
-//	private boolean configured;
-//
-//	private List<ModbusWorker> m_workers = new ArrayList<ModbusWorker>();
-//
-//	public ModbusManager() {
-//		m_executor = Executors.newScheduledThreadPool(5);
-//	}
-//
-//	protected void setCloudService(CloudService cloudService) {
-//		m_cloudService = cloudService;
-//	}
-//
-//	protected void unsetCloudService(CloudService cloudService) {
-//		m_cloudService = null;
-//	}
-//
-//	public void setModbusProtocolDeviceService(ModbusProtocolDeviceService modbusService) {
-//		this.m_protocolDevice = modbusService;
-//	}
-//	
-//	public void unsetModbusProtocolDeviceService(ModbusProtocolDeviceService modbusService) {
-//		this.m_protocolDevice = null;
-//	}
-//	
-//	protected void activate(ComponentContext ctx, Map<String, Object> properties) {
-//		s_logger.info("Activating ModbusManager...");
-//
-//		configured = false;
-//		
-//		try {
-//			m_cloudClient = m_cloudService.newCloudClient(APP_ID);
-//			updated(ctx, properties);
-//		} catch (KuraException e) {
-//			s_logger.error("Configuration update failed", e);
-//		}
-//	}
-//
-//	protected void deactivate(ComponentContext ctx) {
-//		s_logger.info("Deactivating ModbusManager...");
-//
-//		for (ModbusWorker w : m_workers) {
-//			w.stop();
-//		}
-//		m_workers.clear();
-//
-//		if (m_executor != null)
-//			m_executor.shutdown();
-//		
-//		if(m_protocolDevice!=null)
-//			try {
-//				m_protocolDevice.disconnect();
-//			} catch (ModbusProtocolException e) {
-//				s_logger.error("Unable to disconnect from modbus device.", e);
-//			}
-//		
-//		configured = false;
-//		
-//		m_cloudClient.release();
-//	}
-//
-//	protected void updated(ComponentContext ctx, Map<String, Object> properties) {
-//		s_logger.info("Updating ModbusManager...");
-//
-//		m_properties = properties;
-//		modbusProperties = getModbusProperties();
-//		configured=false;
-//
-//		doWork();
-//
-//	}
-//
-//	private void doWork() {
-//
-//		for (ModbusWorker w : m_workers) {
-//			w.stop();
-//		}
-//		m_workers.clear();
-//
-//		new Thread(new Runnable() {
-//
-//			@Override
-//			public void run() {
-//				if(modbusProperties != null && !configured) {
-//					try {
-//						configureDevice();
-//					} catch (ModbusProtocolException e) {
-//						s_logger.warn("The modbus port is not yet available", e);
-//					}
-//				}
-//				
-//				if (configured) {
-//					parseConfiguration();
-//				}
-//			}
-//		}).start();
-//	}
-//
-//	@Override
-//	public synchronized void stateChanged(Object e, String topic) {
-//		if(e instanceof Map<?, ?>){
-//			@SuppressWarnings("unchecked")
-//			Map<String, Object> map = (Map<String, Object>) e;
-//			s_logger.info("Publishing data for:");
-//			for (Entry<String,Object> entry : map.entrySet()) {
-//				s_logger.info("		{} = {}", entry.getKey(), entry.getValue());
-//			}
-//			if ((Boolean) m_properties.get(PROP_FILTER)) 
-//				filter(map);
-//			publishMessage(map, topic);
-//		}
-//	}
-//
-//	private void parseConfiguration() {
-//		// The modbus variables have the following syntax
-//		//		interval=;
-//		//		type=event|polling;
-//		//		<metricName>=slaveAddress,functionCode,registerAddress,length,topic;
-//		//		<metricName>=slaveAddress,functionCode,registerAddress,length,topic;
-//		//		...
-//		//		#
-//		
-//		File configurationFile = new File((String) m_properties.get(PROP_MODBUS_CONF));
-//		Scanner scanner = null;
-//		try {
-//			scanner = new Scanner(configurationFile);
-//			ModbusConfiguration config = new ModbusConfiguration();
-//			while (scanner.hasNextLine()) {
-//				String line = scanner.nextLine();
-//				String[] tokens = line.split(";");
-//				String[] keyValue;
-//				String[] values;
-//				for (String token : tokens) {
-//					if (line.trim().isEmpty()) {
-//						continue;
-//					} else if (token.startsWith("#")) {
-//						if (isConfigured(config)) {
-//							m_workers.add(new ModbusWorker(config, m_executor, this));
-//						} else {
-//							s_logger.warn("Modbus configuration not correct.");
-//						}
-//						config.clear();
-//					} else if (token.toLowerCase().startsWith("interval")) {
-//						keyValue = token.split("=");
-//						if (keyValue.length == 2)
-//							config.setInterval(Integer.parseInt(keyValue[1]));
-//					} else if (token.toLowerCase().startsWith("type")) {
-//						keyValue = token.split("=");
-//						if ((keyValue.length == 2) && ("event".equals(keyValue[1]) || "polling".equals(keyValue[1])))
-//							config.setType(keyValue[1]);
-//					} else {
-//						keyValue = token.split("=");
-//						if (keyValue.length == 2) {
-//							values = keyValue[1].split(",");
-//							Metric m = new Metric(keyValue[0], Integer.parseInt(values[0]), Integer.parseInt(values[1]), Integer.parseInt(values[2]), Integer.parseInt(values[3]));
-//							config.addMetric(m);
-//							config.setTopic(values[4].trim().toLowerCase());
-//						}
-//					}
-//				}
-//			}
-//		} catch (FileNotFoundException e) {
-//			s_logger.error("Configuration file not found", e);
-//		} finally {
-//			if (scanner != null)
-//				scanner.close();
-//		}
-//	}
-//
-//	private boolean isConfigured(ModbusConfiguration config) {
-//		if (config.getInterval() != 0 && !config.getTopic().isEmpty() && !config.getType().isEmpty() && !config.getMetrics().isEmpty())
-//			return true;
-//		else
-//			return false;
-//	}
-//	
-//	private void publishMessage(Map<String, Object> props, String topic){
-//		
-//		int qos = 0;
-//		boolean retain = false; 
-//		KuraPayload payload = new KuraPayload();
-//		payload.setTimestamp(new Date());
-//		for (Entry<String, Object> entry : props.entrySet()) {
-//			if (entry.getValue() instanceof boolean[]) {
-//				if (((boolean[]) entry.getValue()).length == 1) {
-//					payload.addMetric(entry.getKey(), ((boolean[]) entry.getValue())[0]);
-//				} else {
-//					for (int i = 0; i < ((boolean[]) entry.getValue()).length; i++) {
-//						payload.addMetric(entry.getKey() + "." + i, ((boolean[]) entry.getValue())[i]);
-//					}
-//				}
-//			} else if (entry.getValue() instanceof int[]) {
-//				if (((int[]) entry.getValue()).length == 1) {
-//					payload.addMetric(entry.getKey(), ((int[]) entry.getValue())[0]);
-//				} else {
-//					for (int i = 0; i < ((int[]) entry.getValue()).length; i++) {
-//						payload.addMetric(entry.getKey() + "." + i, ((int[]) entry.getValue())[i]);
-//					}
-//				}
-//			}
-//		}
-//		
-//		try {
-//			m_cloudClient.publish(topic, payload, qos, retain);
-//		} catch (KuraException e) {
-//			s_logger.error("Unable to publish message", e);
-//		}
-//		
-//	}
-//	
-//	private Properties getModbusProperties() {
-//		Properties prop = new Properties();
-//
-//		if(m_properties!=null){
-//			String portName = null;
-//			String serialMode = null;
-//			String baudRate = null;
-//			String bitsPerWord = null;
-//			String stopBits = null;
-//			String parity = null;
-//			String ipAddress = null;
-//			String mode= null;
-//			String timeout= null;
-//			if(m_properties.get("transmissionMode") != null) 
-//				mode = (String) m_properties.get("transmissionMode");
-//			if(m_properties.get("respTimeout") != null) 
-//				timeout	= (String) m_properties.get("respTimeout");
-//			if(m_properties.get(PROP_PORT) != null) 
-//				portName = (String) m_properties.get(PROP_PORT);
-//			if(m_properties.get(PROP_SERIAL_MODE) != null) 
-//				serialMode = (String) m_properties.get(PROP_SERIAL_MODE);
-//			if(m_properties.get(PROP_BAUDRATE) != null) 
-//				baudRate = (String) m_properties.get(PROP_BAUDRATE);
-//			if(m_properties.get(PROP_BITPERWORD) != null) 
-//				bitsPerWord = (String) m_properties.get(PROP_BITPERWORD);
-//			if(m_properties.get(PROP_STOPBITS) != null) 
-//				stopBits = (String) m_properties.get(PROP_STOPBITS);
-//			if(m_properties.get(PROP_PARITY) != null) 
-//				parity = (String) m_properties.get(PROP_PARITY);
-//			if(m_properties.get(PROP_IP) != null) 
-//				ipAddress = (String) m_properties.get(PROP_IP);
-//			
-//			if(portName==null)
-//				return null;		
-//			if(baudRate==null) 
-//				baudRate="9600";
-//			if(stopBits==null) 
-//				stopBits="1";
-//			if(parity==null) 
-//				parity="0";
-//			if(bitsPerWord==null) 
-//				bitsPerWord="8";
-//			if(mode==null) 
-//				mode="RTU";
-//			if(timeout==null) 
-//				timeout="1000";
-//			
-//			if(serialMode!=null) {
-//				if(serialMode.equalsIgnoreCase("RS232") || serialMode.equalsIgnoreCase("RS485")) {
-//					prop.setProperty("connectionType", "SERIAL");
-//					prop.setProperty("serialMode", serialMode);
-//					prop.setProperty("port", portName);
-//					prop.setProperty("exclusive", "false");
-//					prop.setProperty("mode", "0");
-//					prop.setProperty("baudRate", baudRate);
-//					prop.setProperty("stopBits", stopBits);
-//					prop.setProperty("parity", parity);
-//					prop.setProperty("bitsPerWord", bitsPerWord);
-//				} else {
-//					prop.setProperty("connectionType", "ETHERTCP");
-//					prop.setProperty("ipAddress", ipAddress);
-//					prop.setProperty("port", portName);
-//				}
-//			}
-//			prop.setProperty("transmissionMode", mode);
-//			prop.setProperty("respTimeout", timeout);
-//
-//			return prop;
-//		} else {
-//			return null;
-//		}
-//	}
-//	
-//	private void configureDevice() throws ModbusProtocolException {
-//		if(m_protocolDevice!=null){
-//			m_protocolDevice.disconnect();
-//
-//			m_protocolDevice.configureConnection(modbusProperties);
-//
-//			configured = true;
-//		}
-//	}
-//	
-//	private void filter(Map<String, Object> map) {
-//		if (map.get("room") != null) {
-//			int offset = 0;
-//			float gain = 0.1f;
-//			int roomRawTemp = ((int[]) map.get("room"))[0];
-//			map.put("room_filtered", (roomRawTemp + offset) * gain);
-//		}
-//	}
-//	
-//}
+	private void getStaticDevices(ScannerConfig scannerConfig) {
+		
+		String model;
+		for (Entry<Integer,String> entry : scannerConfig.getAssets().entrySet()) {
+			model = entry.getValue();
+			if (devices.get(model) == null) {
+				ArrayList<Integer> slaveAddresses = new ArrayList<Integer>();
+				slaveAddresses.add(entry.getKey());
+				devices.put(model, slaveAddresses);
+			} else {
+				devices.get(model).add(entry.getKey());
+			}
+		}
+		
+	}
+	
+	private void scanForDevices(ScannerConfig scannerConfig) {
+		// Perform scan... currently not supported.
+	}
+	
+}

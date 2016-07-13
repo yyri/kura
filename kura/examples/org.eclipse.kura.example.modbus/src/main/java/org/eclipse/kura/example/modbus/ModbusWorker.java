@@ -32,13 +32,13 @@ public class ModbusWorker {
 	public ModbusWorker(ModbusConfiguration config, ScheduledExecutorService executor, KuraChangeListener listener) {
 
 		this.m_metrics = new ArrayList<Metric>();
-		for (Metric metric : config.getMetrics())
-			this.m_metrics.add(metric);
+//		for (Metric metric : config.getMetrics())
+//			this.m_metrics.add(metric);
 
 		this.m_interval = config.getInterval();
 		this.m_listener = listener;
-		this.m_topic = config.getTopic();
-		this.m_onEvent = "event".equals(config.getType()) ? true : false;
+//		this.m_topic = config.getTopic();
+//		this.m_onEvent = "event".equals(config.getType()) ? true : false;
 		this.m_data = new HashMap<String,Object>();
 		this.m_oldData = new HashMap<String,Object>();
 		this.changed = false;
@@ -137,18 +137,18 @@ public class ModbusWorker {
 		}
 
 		private synchronized boolean[] readCoils(int unitAddr, int dataAddress, int count) throws ModbusProtocolException {
-			return ModbusManager.m_protocolDevice.readCoils(unitAddr, dataAddress, count);
+			return ModbusManager.protocolDevice.readCoils(unitAddr, dataAddress, count);
 		}
 
 		private synchronized boolean[] readDiscreteInputs(int unitAddr, int dataAddress, int count) throws ModbusProtocolException {
-			return ModbusManager.m_protocolDevice.readDiscreteInputs(unitAddr, dataAddress, count);
+			return ModbusManager.protocolDevice.readDiscreteInputs(unitAddr, dataAddress, count);
 		}
 
 		private synchronized int[] readHoldingRegisters(int unitAddr, int dataAddress, int count) throws ModbusProtocolException {
-			return ModbusManager.m_protocolDevice.readHoldingRegisters(unitAddr, dataAddress, count);
+			return ModbusManager.protocolDevice.readHoldingRegisters(unitAddr, dataAddress, count);
 		}
 		private synchronized int[] readInputRegisters(int unitAddr, int dataAddress, int count) throws ModbusProtocolException {
-			return ModbusManager.m_protocolDevice.readInputRegisters(unitAddr, dataAddress, count);
+			return ModbusManager.protocolDevice.readInputRegisters(unitAddr, dataAddress, count);
 		}
 
 		private boolean isDataChanged(String metricName, boolean[] data) {
