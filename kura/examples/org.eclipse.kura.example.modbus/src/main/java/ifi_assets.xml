@@ -21,7 +21,7 @@
 	<publishGroups>
 		<publishGroup>
 			<name>dataGroup</name>
-			<interval>300000</interval>
+			<publishInterval>300000</publishInterval>
 			<onChange>false</onChange>
 			<topic>data</topic>
 			<qos>0</qos>

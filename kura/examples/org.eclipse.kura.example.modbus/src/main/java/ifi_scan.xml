@@ -12,14 +12,6 @@
             <id>1</id>
             <model>xw764k</model>
         </asset>
-        <asset>
-            <id>2</id>
-            <model>xw60lrt</model>
-        </asset>
-        <asset>
-            <id>11</id>
-            <model>xw60lrt</model>
-        </asset>
     </assets>
 
     <!-- exclude the following assets, from scan and poll -->

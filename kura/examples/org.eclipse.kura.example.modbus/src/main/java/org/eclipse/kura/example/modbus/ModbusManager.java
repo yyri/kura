@@ -18,8 +18,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import org.eclipse.kura.KuraException;
 import org.eclipse.kura.cloud.CloudClient;
@@ -58,8 +61,6 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 	private CloudClient cloudClient;
 	public static ModbusProtocolDeviceService protocolDevice;
 
-	private ScheduledExecutorService executor;
-
 	private Map<String, Object> currentProperties;
 	private static Properties modbusProperties;
 
@@ -68,11 +69,16 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 	private Map<String,List<Integer>> devices;
 	private Map<String,ModbusConfiguration> pollGroups;
 	private Map<String,PublishConfiguration> publishGroups;
+	private List<Metric> metrics;
 
-	private List<ModbusWorker> workers = new ArrayList<ModbusWorker>();
+	private ScheduledExecutorService pollExecutor;
+	private ScheduledExecutorService publishExecutor;
+	private Map<String,ScheduledFuture<?>> publishHandles;
+	private Map<String, ModbusWorker> workers = new HashMap<String,ModbusWorker>();
 
 	public ModbusManager() {
-		executor = Executors.newScheduledThreadPool(5);
+		pollExecutor = Executors.newScheduledThreadPool(5);
+		publishExecutor = Executors.newScheduledThreadPool(5);
 	}
 
 	protected void setCloudService(CloudService cloudService) {
@@ -95,6 +101,7 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 		s_logger.info("Activating ModbusManager...");
 
 		configured = false;
+		publishHandles = new HashMap<String,ScheduledFuture<?>>();
 
 		try {
 			cloudClient = cloudService.newCloudClient(APP_ID);
@@ -108,14 +115,22 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 	protected void deactivate(ComponentContext ctx) {
 		s_logger.info("Deactivating ModbusManager...");
 
-		for (ModbusWorker w : workers) {
-			w.stop();
+		for (Entry<String,ModbusWorker> w : workers.entrySet()) {
+			w.getValue().stop();
 		}
 		workers.clear();
 
-		if (executor != null)
-			executor.shutdown();
+		if (pollExecutor != null)
+			pollExecutor.shutdown();
 
+		for (Entry<String,ScheduledFuture<?>> handle : publishHandles.entrySet()) {
+			handle.getValue().cancel(true);
+		}
+		publishHandles.clear();
+		
+		if (publishExecutor != null)
+			publishExecutor.shutdown();
+		
 		if(protocolDevice!=null)
 			try {
 				protocolDevice.disconnect();
@@ -139,13 +154,21 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 
 	}
 
-	private void doWork() {
+	private synchronized void doWork() {
 
-		for (ModbusWorker w : workers) {
-			w.stop();
+		for (Entry<String,ModbusWorker> w : workers.entrySet()) {
+			w.getValue().stop();
 		}
 		workers.clear();
+		
+		for (Entry<String,ScheduledFuture<?>> handle : publishHandles.entrySet()) {
+			handle.getValue().cancel(true);
+		}
+		publishHandles.clear();
 
+		initializeMetrics();
+		
+		final KuraChangeListener kuraChangeListener = this;
 		new Thread(new Runnable() {
 
 			@Override
@@ -159,143 +182,44 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 				}
 
 				if (configured) {
+					// Scan for connected devices or get devices address from configuration
 					searchForDevices();
+					// Get PLCs registers from configuration 
 					parseConfiguration();
 					s_logger.info("Configuration done!");
+					
+					// Start workers for polling
+					for(Entry<String, ModbusConfiguration> entry : pollGroups.entrySet()) {
+						if (workers.get(entry.getKey()) == null)
+							workers.put(entry.getKey(),new ModbusWorker(entry.getValue(), pollExecutor, kuraChangeListener));
+					}
+					
+					// Start workers for publishing
+					for(final Entry<String, PublishConfiguration> entry : publishGroups.entrySet()) {
+						if (publishHandles.get(entry.getKey()) == null) {
+							publishHandles.put(entry.getKey(), publishExecutor.scheduleAtFixedRate(new Runnable() {
+								@Override
+								public void run() {
+									publishMessage(entry.getValue().getName(), entry.getValue().getTopic(), entry.getValue().getQos());
+									// Manca onChange!!!!
+								}
+							}, 2000, entry.getValue().getInterval(), TimeUnit.MILLISECONDS));
+						}
+					}
 				}
 			}
 		}).start();
 	}
 
 	@Override
-	public synchronized void stateChanged(Object e, String topic) {
-		if(e instanceof Map<?, ?>){
-			@SuppressWarnings("unchecked")
-			Map<String, Object> map = (Map<String, Object>) e;
-			s_logger.info("Publishing data for:");
-			//			for (Entry<String,Object> entry : map.entrySet()) {
-			//				s_logger.info("		{} = {}", entry.getKey(), entry.getValue());
-			//			}
-			//			publishMessage(map, topic);
-			// Custom filter for test purposes only!!!
-			Map<String,Object> filteredMap = new HashMap<String,Object>();
-			for (Entry<String,Object> entry : map.entrySet()) {
-				if (entry.getKey().equals("Room") || entry.getKey().equals("Evaporator") || entry.getKey().equals("SetPoint")) {
-					float[] data = {((int[]) entry.getValue())[0]*0.1F};
-					filteredMap.put(entry.getKey(), data);
-					s_logger.info("		{} = {}", entry.getKey(), data[0]);
-				} 
-				else if (entry.getKey().equals("DigitalOutput")) {
-					int data = ((int[]) entry.getValue())[0];
-					if ((data & 0x0100) == 0x0100) {
-						boolean[] output = {true};
-						filteredMap.put("OnOffOut", output);
-						s_logger.info("		{} = {}", "OnOffOut", output);
-					} else {
-						boolean[] output = {false};
-						filteredMap.put("OnOffOut", output);
-						s_logger.info("		{} = {}", "OnOffOut", output);
-					}
-					if ((data & 0x0200) == 0x0200) {
-						boolean[] output = {true};
-						filteredMap.put("Defrost", output);
-						s_logger.info("		{} = {}", "Defrost", output);
-					} else {
-						boolean[] output = {false};
-						filteredMap.put("Defrost", output);
-						s_logger.info("		{} = {}", "Defrost", output);
-					}
-					if ((data & 0x0400) == 0x0400) {
-						boolean[] output = {true};
-						filteredMap.put("Defrost2", output);
-						s_logger.info("		{} = {}", "Defrost2", output);
-					} else {
-						boolean[] output = {false};
-						filteredMap.put("Defrost2", output);
-						s_logger.info("		{} = {}", "Defrost2", output);
-					}
-					if ((data & 0x0800) == 0x0800) {
-						boolean[] output = {true};
-						filteredMap.put("Alarm", output);
-						s_logger.info("		{} = {}", "Alarm", output);
-					} else {
-						boolean[] output = {false};
-						filteredMap.put("Alarm", output);
-						s_logger.info("		{} = {}", "Alarm", output);
-					}
-					if ((data & 0x1000) == 0x1000) {
-						boolean[] output = {true};
-						filteredMap.put("Light", output);
-						s_logger.info("		{} = {}", "Light", output);
-					} else {
-						boolean[] output = {false};
-						filteredMap.put("Light", output);
-						s_logger.info("		{} = {}", "Light", output);
-					}
-					if ((data & 0x2000) == 0x2000) {
-						boolean[] output = {true};
-						filteredMap.put("Fan", output);
-						s_logger.info("		{} = {}", "Fan", output);
-					} else {
-						boolean[] output = {false};
-						filteredMap.put("Fan", output);
-						s_logger.info("		{} = {}", "Fan", output);
-					}
-					if ((data & 0x4000) == 0x4000) {
-						boolean[] output = {true};
-						filteredMap.put("Aux", output);
-						s_logger.info("		{} = {}", "Aux", output);
-					} else {
-						boolean[] output = {false};
-						filteredMap.put("Aux", output);
-						s_logger.info("		{} = {}", "Aux", output);
-					}
-				}
-				else if (entry.getKey().equals("Pb1")) {
-					int data = ((int[]) entry.getValue())[0];
-					if ((data & 0x0003) == 0x0001) {
-						filteredMap.put("Pb1", "LowValuePb1");
-						s_logger.info("		{} = {}", "Pb1", "LowValuePb1");
-					} else if ((data & 0x0003) == 0x0002) {
-						filteredMap.put("Pb1", "HighValuePb1");
-						s_logger.info("		{} = {}", "Pb1", "HighValuePb1");
-					} else if ((data & 0x0003) == 0x0003) {
-						filteredMap.put("Pb1", "ErrorPb1");
-						s_logger.info("		{} = {}", "Pb1", "ErrorPb1");
-					}
-				}
-				else if (entry.getKey().equals("Pb2")) {
-					int data = ((int[]) entry.getValue())[0];
-					if ((data & 0x0003) == 0x0001) {
-						filteredMap.put("Pb2", "LowValuePb2");
-						s_logger.info("		{} = {}", "Pb2", "LowValuePb2");
-					} else if ((data & 0x0003) == 0x0002) {
-						filteredMap.put("Pb2", "HighValuePb2");
-						s_logger.info("		{} = {}", "Pb2", "LowValuePb2");
-					} else if ((data & 0x0003) == 0x0003) {
-						filteredMap.put("Pb2", "ErrorPb2");
-						s_logger.info("		{} = {}", "Pb2", "LowValuePb2");
-					}
-				}
-				else if (entry.getKey().equals("Alarms")) {
-					int data = ((int[]) entry.getValue())[0];
-					if ((data & 0x0800) == 0x0800) {
-						filteredMap.put("Alarms", "OpenDoor");
-						s_logger.info("		{} = {}", "Alarms", "OpenDoor");
-					} else if ((data & 0x1000) == 0x1000) {
-						filteredMap.put("Alarms", "SevereAlarm");
-						s_logger.info("		{} = {}", "Alarms", "SevereAlarm");
-					} else if ((data & 0x2000) == 0x2000) {
-						filteredMap.put("Alarms", "RTCFailure");
-						s_logger.info("		{} = {}", "Alarms", "RTCFailure");
-					} else if ((data & 0x4000) == 0x4000) {
-						filteredMap.put("Alarms", "EEPROMFailure");
-						s_logger.info("		{} = {}", "Alarms", "EEPROMFailure");
-					}
-				}
-			}			
-			publishMessage(filteredMap, topic);
+	public synchronized void stateChanged(List<Metric> dataMetrics) {
+		
+		for (Metric m : dataMetrics) {
+			s_logger.debug("Name {}", m.getMetricName());
+			s_logger.debug("Value {}", m.getData());
+			metrics.add(new Metric(m.getMetricName(),m.getPublishGroup(),m.getSlaveAddress(),m.getData()));
 		}
+
 	}
 
 	private void parseConfiguration() {
@@ -347,47 +271,46 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 //			return false;
 	}
 	
-	private void publishMessage(Map<String, Object> props, String topic){
+	private synchronized void publishMessage(String publishGroup, String topic, Integer qos){
+
+		s_logger.debug("PublishMessage()");
+		Map<Integer,List<Metric>> deviceMetricList= new HashMap<Integer,List<Metric>>();
 		
-		int qos = 0;
-		boolean retain = false; 
-		KuraPayload payload = new KuraPayload();
-		payload.setTimestamp(new Date());
-		for (Entry<String, Object> entry : props.entrySet()) {
-			if (entry.getValue() instanceof boolean[]) {
-				if (((boolean[]) entry.getValue()).length == 1) {
-					payload.addMetric(entry.getKey(), ((boolean[]) entry.getValue())[0]);
+		s_logger.debug("Add {} metrics to deviceMetricList...",metrics.size());
+		for (Metric metric : metrics) {
+			if (metric.getPublishGroup().equals(publishGroup)) {
+				Metric metricCopy = new Metric(metric);
+				metrics.remove(metric);
+
+				if (deviceMetricList.get(metricCopy.getSlaveAddress()) == null) {
+					List<Metric> metricList = new ArrayList<Metric>();
+					metricList.add(metricCopy);
+					deviceMetricList.put(metricCopy.getSlaveAddress(), metricList);
 				} else {
-					for (int i = 0; i < ((boolean[]) entry.getValue()).length; i++) {
-						payload.addMetric(entry.getKey() + "." + i, ((boolean[]) entry.getValue())[i]);
-					}
+					deviceMetricList.get(metricCopy.getSlaveAddress()).add(metricCopy);
 				}
-			} else if (entry.getValue() instanceof int[]) {
-				if (((int[]) entry.getValue()).length == 1) {
-					payload.addMetric(entry.getKey(), ((int[]) entry.getValue())[0]);
-				} else {
-					for (int i = 0; i < ((int[]) entry.getValue()).length; i++) {
-						payload.addMetric(entry.getKey() + "." + i, ((int[]) entry.getValue())[i]);
-					}
-				}
-			} else if (entry.getValue() instanceof float[]) {
-				if (((float[]) entry.getValue()).length == 1) {
-					payload.addMetric(entry.getKey(), ((float[]) entry.getValue())[0]);
-				} else {
-					for (int i = 0; i < ((float[]) entry.getValue()).length; i++) {
-						payload.addMetric(entry.getKey() + "." + i, ((float[]) entry.getValue())[i]);
-					}
-				}
-			} else {
-				payload.addMetric(entry.getKey(), (String) entry.getValue());
 			}
 		}
+		s_logger.debug("...Done!");
 		
-		try {
-			cloudClient.publish(topic, payload, qos, retain);
-		} catch (KuraException e) {
-			s_logger.error("Unable to publish message", e);
+		s_logger.debug("Create payloads.");
+		for (Entry<Integer,List<Metric>> entry : deviceMetricList.entrySet()) {
+			KuraPayload payload = new KuraPayload();
+			payload.setTimestamp(new Date());
+
+			s_logger.debug("Adding metrics.");
+			for (Metric metric : entry.getValue()) {
+				payload.addMetric(metric.getMetricName(), metric.getData());
+			}
+			
+			try {
+				s_logger.debug("Publish Message on {} ", entry.getKey() + topic);
+				cloudClient.publish(entry.getKey() + "/" + topic, payload, qos, false);
+			} catch (KuraException e) {
+				s_logger.error("Unable to publish message", e);
+			}
 		}
+		s_logger.debug("Publish Done!");
 		
 	}
 	
@@ -572,4 +495,10 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 		// Perform scan... currently not supported.
 	}
 	
+	private synchronized void initializeMetrics() {
+		if (metrics == null) {
+			metrics = new CopyOnWriteArrayList<Metric>(new ArrayList<Metric>());
+		}
+		metrics.clear();
+	}
 }

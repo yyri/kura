@@ -3,25 +3,29 @@ package org.eclipse.kura.example.modbus;
 public class Metric {
 
 	private String metricName;
-	private int slaveAddress;
-	private int functionCode;
-	private int registerAddress;
-	private int length;
-	
+	private String publishGroup;
+	private Integer slaveAddress;
+	private Object data;
+
 	public Metric() {
-		metricName = "";
-		slaveAddress = 0;
-		functionCode = 0;
-		registerAddress = 0;
-		length = 1;
+		this.metricName = "";
+		this.publishGroup = "";
+		this.slaveAddress = -1;
 	}
 	
-	public Metric(String metricName, int slaveAddress, int functionCode, int registerAddress, int length) {
+	public Metric(String metricName, String publishGroup, int slaveAddress, Object data) {
 		this.metricName = metricName;
+		this.publishGroup = publishGroup;
 		this.slaveAddress = slaveAddress;
-		this.functionCode = functionCode;
-		this.registerAddress = registerAddress;
-		this.length = length;
+		this.data = data;
+	}
+	
+	public Metric(Metric metric) {
+		this.metricName = new String(metric.getMetricName());
+		this.publishGroup = new String(metric.getPublishGroup());
+		this.slaveAddress = new Integer(metric.getSlaveAddress());
+		if (metric.getData() instanceof Float) 
+			this.data = new Float((Float) metric.getData());
 	}
 	
 	public String getMetricName() {
@@ -32,7 +36,14 @@ public class Metric {
 		this.metricName = metricName;
 	}
 	
-	public int getSlaveAddress() {
+	public String getPublishGroup() {
+		return publishGroup;
+	}
+	
+	public void setPublishGroup(String publishGroup) {
+		this.publishGroup = publishGroup;
+	}
+	public Integer getSlaveAddress() {
 		return slaveAddress;
 	}
 	
@@ -40,28 +51,11 @@ public class Metric {
 		this.slaveAddress = slaveAddress;
 	}
 	
-	public int getFunctionCode() {
-		return functionCode;
+	public Object getData() {
+		return data;
 	}
-	
-	public void setFunctionCode(int functionCode) {
-		this.functionCode = functionCode;
+
+	public void setData(Object data) {
+		this.data = data;
 	}
-	
-	public int getRegisterAddress() {
-		return registerAddress;
-	}
-	
-	public void setRegisterAddress(int registerAddress) {
-		this.registerAddress = registerAddress;
-	}
-	
-	public int getLength() {
-		return length;
-	}
-	
-	public void setLength(int length) {
-		this.length = length;
-	}	
-	
 }

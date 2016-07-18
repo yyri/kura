@@ -1,13 +1,14 @@
 package org.eclipse.kura.example.modbus;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import org.eclipse.kura.example.modbus.register.ModbusResources;
+import org.eclipse.kura.example.modbus.register.Register;
 import org.eclipse.kura.protocol.modbus.ModbusProtocolException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,7 +16,11 @@ import org.slf4j.LoggerFactory;
 public class ModbusWorker {
 
 	private static final Logger s_logger = LoggerFactory.getLogger(ModbusWorker.class);
-
+	
+	private List<ModbusResources> resources;
+	private ModbusRunner runner = new ModbusRunner();
+	private List<Metric> data;
+	
 	private List<Metric> m_metrics;
 	private Map<String,Object> m_data;
 	private Map<String,Object> m_oldData;
@@ -25,26 +30,31 @@ public class ModbusWorker {
 	private ScheduledFuture<?> m_handle;
 	private ModbusRunner m_runner = new ModbusRunner();
 	private volatile boolean m_stopIt = false;
-	private KuraChangeListener m_listener;
+	private KuraChangeListener listener;
 	private boolean changed;
 
 
 	public ModbusWorker(ModbusConfiguration config, ScheduledExecutorService executor, KuraChangeListener listener) {
 
-		this.m_metrics = new ArrayList<Metric>();
-//		for (Metric metric : config.getMetrics())
-//			this.m_metrics.add(metric);
+		this.resources = config.getRegisters();
+		this.data = new ArrayList<Metric>();
+		this.listener = listener;
+		
+		
+//		this.m_metrics = new ArrayList<Metric>();
+////		for (Metric metric : config.getMetrics())
+////			this.m_metrics.add(metric);
 
-		this.m_interval = config.getInterval();
-		this.m_listener = listener;
-//		this.m_topic = config.getTopic();
-//		this.m_onEvent = "event".equals(config.getType()) ? true : false;
-		this.m_data = new HashMap<String,Object>();
-		this.m_oldData = new HashMap<String,Object>();
-		this.changed = false;
+//		this.m_interval = config.getInterval();
+//		this.m_listener = listener;
+////		this.m_topic = config.getTopic();
+////		this.m_onEvent = "event".equals(config.getType()) ? true : false;
+//		this.m_data = new HashMap<String,Object>();
+//		this.m_oldData = new HashMap<String,Object>();
+//		this.changed = false;
 
 		s_logger.info("Scheduling worker...");
-		m_handle = executor.scheduleAtFixedRate(m_runner, 2000, m_interval, TimeUnit.MILLISECONDS);
+		m_handle = executor.scheduleAtFixedRate(runner, 2000, config.getInterval(), TimeUnit.MILLISECONDS);
 	}
 
 	public void stop(){
@@ -62,77 +72,29 @@ public class ModbusWorker {
 		public void run() {
 			if(!m_stopIt) {
 
-				// functionCodes :
-				// 01 : readCoils
-				// 02 : readDiscreteInputs
-				// 03 : readHoldingRegisters
-				// 04 : readInputRegisters
-
-				m_data.clear();
-				changed = false;
-				if (!m_onEvent) {
-					try {
-						for (Metric metric : m_metrics) {
-							Thread.sleep(10);
-							if (metric.getFunctionCode() == 1) {
-								m_data.put(metric.getMetricName(), readCoils(metric.getSlaveAddress(), metric.getRegisterAddress(), metric.getLength()));
-							} else if (metric.getFunctionCode() == 2) {
-								m_data.put(metric.getMetricName(), readDiscreteInputs(metric.getSlaveAddress(), metric.getRegisterAddress(), metric.getLength()));
-							} else if (metric.getFunctionCode() == 3) {
-								m_data.put(metric.getMetricName(), readHoldingRegisters(metric.getSlaveAddress(), metric.getRegisterAddress(), metric.getLength()));
-							} else if (metric.getFunctionCode() == 4) {
-								m_data.put(metric.getMetricName(), readInputRegisters(metric.getSlaveAddress(), metric.getRegisterAddress(), metric.getLength()));
+				data.clear();
+				
+				try {
+					for (ModbusResources mr : resources) {
+						for (Integer slaveAddress : mr.getSlaveAddress()) {
+							if ("C".equals(mr.getType())) {
+								getMetric(readCoils(slaveAddress, Integer.parseInt(mr.getRegisterAddress(),16), mr.getRegisters().size()), mr, slaveAddress);
+							} else if ("DI".equals(mr.getType())) {
+								getMetric(readDiscreteInputs(slaveAddress, Integer.parseInt(mr.getRegisterAddress(),16), mr.getRegisters().size()), mr, slaveAddress);
+							} else if ("HR".equals(mr.getType())) {
+								getMetric(readHoldingRegisters(slaveAddress, Integer.parseInt(mr.getRegisterAddress(),16), mr.getRegisters().size()), mr, slaveAddress);
+							} else if ("IR".equals(mr.getType())) {
+								getMetric(readInputRegisters(slaveAddress, Integer.parseInt(mr.getRegisterAddress(),16), mr.getRegisters().size()), mr, slaveAddress);
 							}
 						}
-					} catch (ModbusProtocolException e) {
-						s_logger.error("Unable to read from Modbus.", e);
-					} catch (InterruptedException e) {
-						s_logger.error("Unable to read from Modbus.", e);
 					}
-
-					if (!m_data.isEmpty())
-						m_listener.stateChanged(m_data, m_topic);
-				} else {
-					try {
-						for (Metric metric : m_metrics) {
-							if (metric.getFunctionCode() == 1) {
-								boolean[] data = readCoils(metric.getSlaveAddress(), metric.getRegisterAddress(), metric.getLength());
-								if (isDataChanged(metric.getMetricName(), data)) {
-									m_data.put(metric.getMetricName(), data);
-									m_oldData.put(metric.getMetricName(), data);
-									changed = true;
-								}
-							} else if (metric.getFunctionCode() == 2) {
-								boolean[] data = readDiscreteInputs(metric.getSlaveAddress(), metric.getRegisterAddress(), metric.getLength());
-								if (isDataChanged(metric.getMetricName(), data)) {
-									m_data.put(metric.getMetricName(), data);
-									m_oldData.put(metric.getMetricName(), data);
-									changed = true;
-								}							
-							} else if (metric.getFunctionCode() == 3) {
-								int[] data = readHoldingRegisters(metric.getSlaveAddress(), metric.getRegisterAddress(), metric.getLength());
-								if (isDataChanged(metric.getMetricName(), data)) {
-									m_data.put(metric.getMetricName(), data);
-									m_oldData.put(metric.getMetricName(), data);
-									changed = true;
-								}										
-							} else if (metric.getFunctionCode() == 4) {
-								int[] data = readInputRegisters(metric.getSlaveAddress(), metric.getRegisterAddress(), metric.getLength());
-								if (isDataChanged(metric.getMetricName(), data)) {
-									m_data.put(metric.getMetricName(), data);
-									m_oldData.put(metric.getMetricName(), data);
-									changed = true;
-								}
-							}
-						}
-					} catch (ModbusProtocolException e) {
-						s_logger.error("Unable to read from Modbus.", e);
-					}
-
-					if (changed && !m_data.isEmpty()) {
-						m_listener.stateChanged(m_data, m_topic);
-					}
+				} catch (ModbusProtocolException e) {
+					s_logger.error("Unable to read from Modbus.", e);
 				}
+				
+				if (!data.isEmpty())
+					listener.stateChanged(data);
+				
 			}
 		}
 
@@ -172,7 +134,23 @@ public class ModbusWorker {
 			}
 			return false;
 		}
+		
+		private void getMetric(int[] modbusData, ModbusResources resource, Integer slaveAddress) {
+			List<Register> rList = resource.getRegisters();
+			for (int i = 0; i < rList.size(); i++) {
+				Register r = rList.get(i);
+				if ("int16".equals(r.getType())) {
+					Float result = modbusData[i] * r.getScale() + r.getOffset();
+					data.add(new Metric(r.getName(), r.getPublishGroup(), slaveAddress, result));
+				} else if ("bitmap16".equals(r.getType())) {
+					// TBD
+				}
+			}
+		}
 
+		private void getMetric(boolean[] modbusData, ModbusResources resource, Integer slaveAddress) {
+			
+		}
 	}
 
 }

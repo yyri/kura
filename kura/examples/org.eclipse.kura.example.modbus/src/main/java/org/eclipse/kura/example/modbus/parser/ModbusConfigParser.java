@@ -114,7 +114,7 @@ public class ModbusConfigParser {
 				Element publishGroup = (Element) node;
 				PublishConfiguration publishConfiguration = new PublishConfiguration();
 				publishConfiguration.setName(publishGroup.getElementsByTagName("name").item(0).getTextContent());
-				publishConfiguration.setInterval(Integer.parseInt(publishGroup.getElementsByTagName("interval").item(0).getTextContent()));
+				publishConfiguration.setInterval(Integer.parseInt(publishGroup.getElementsByTagName("publishInterval").item(0).getTextContent()));
 				publishConfiguration.setOnChange(new Boolean(publishGroup.getElementsByTagName("onChange").item(0).getTextContent()));
 				publishConfiguration.setTopic(publishGroup.getElementsByTagName("topic").item(0).getTextContent());
 				publishConfiguration.setQos(Integer.parseInt(publishGroup.getElementsByTagName("qos").item(0).getTextContent()));
