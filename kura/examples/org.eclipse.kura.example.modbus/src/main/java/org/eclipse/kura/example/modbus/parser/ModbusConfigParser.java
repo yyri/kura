@@ -159,31 +159,33 @@ public class ModbusConfigParser {
 		r.setAccess(register.getElementsByTagName("access").item(0).getTextContent());
 		r.setPublishGroup(register.getElementsByTagName("publishGroup").item(0).getTextContent());
 		r.setType(register.getElementsByTagName("type").item(0).getTextContent());
+		r.setDisabled(Boolean.getBoolean(register.getElementsByTagName("disabled").item(0).getTextContent()));
 		if ("int16".equals(r.getType())) {
 			r.setName(register.getElementsByTagName("name").item(0).getTextContent());
-			r.setDisabled(Boolean.getBoolean(register.getElementsByTagName("disabled").item(0).getTextContent()));
 			r.setScale(Float.parseFloat(register.getElementsByTagName("scale").item(0).getTextContent()));
 			r.setOffset(Float.parseFloat(register.getElementsByTagName("offset").item(0).getTextContent()));
 			r.setUnit(register.getElementsByTagName("offset").item(0).getTextContent());
 			r.setMin(Float.parseFloat(register.getElementsByTagName("min").item(0).getTextContent()));
 			r.setMax(Float.parseFloat(register.getElementsByTagName("max").item(0).getTextContent()));
 		} else if ("bitmap16".equals(r.getType())) {
-			NodeList fields = register.getChildNodes();
+			NodeList fields = ((Element) register.getElementsByTagName("fields").item(0)).getChildNodes();
 			for (int w = 0; w < fields.getLength(); w++) {
 				Node fieldNode = fields.item(w);
 				Element fieldElement;
 				Field field = null;
-				if (fieldNode.getNodeType() == Node.ELEMENT_NODE && "field".equals(fieldNode.getNodeName())) {
+				if (fieldNode.getNodeType() == Node.ELEMENT_NODE) {
 					fieldElement = (Element) fieldNode;
 					field = new Field(fieldElement.getElementsByTagName("mask").item(0).getTextContent(),
 							Integer.parseInt(fieldElement.getElementsByTagName("shift").item(0).getTextContent()),
 							fieldElement.getElementsByTagName("name").item(0).getTextContent());
-					NodeList options = fieldNode.getChildNodes();
-					if (options != null) {
+					NodeList options = ((Element) fieldNode).getElementsByTagName("options");
+					if (options.getLength() > 0) {
+						options = options.item(0).getChildNodes();
 						for (int y = 0; y < options.getLength(); y++) {
 							Element optionElement;
-							if (fieldNode.getNodeType() == Node.ELEMENT_NODE && "field".equals(fieldNode.getNodeName())) {
-								optionElement = (Element) options.item(y);
+							Node optionNode = options.item(y);
+							if (optionNode.getNodeType() == Node.ELEMENT_NODE) {
+								optionElement = (Element) optionNode;
 								Option option = new Option(optionElement.getElementsByTagName("name").item(0).getTextContent(),
 										optionElement.getElementsByTagName("value").item(0).getTextContent());
 								field.addOption(option);

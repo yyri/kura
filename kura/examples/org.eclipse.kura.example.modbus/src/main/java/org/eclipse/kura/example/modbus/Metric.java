@@ -26,6 +26,10 @@ public class Metric {
 		this.slaveAddress = new Integer(metric.getSlaveAddress());
 		if (metric.getData() instanceof Float) 
 			this.data = new Float((Float) metric.getData());
+		else if (metric.getData() instanceof Boolean) 
+			this.data = new Boolean((Boolean) metric.getData());
+		else if (metric.getData() instanceof String)
+			this.data = new String((String) metric.getData());
 	}
 	
 	public String getMetricName() {

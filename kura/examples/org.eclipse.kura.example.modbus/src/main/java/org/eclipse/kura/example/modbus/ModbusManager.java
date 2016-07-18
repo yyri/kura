@@ -304,7 +304,7 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 			}
 			
 			try {
-				s_logger.debug("Publish Message on {} ", entry.getKey() + topic);
+				s_logger.debug("Publish Message on {} ", entry.getKey() + "/" + topic);
 				cloudClient.publish(entry.getKey() + "/" + topic, payload, qos, false);
 			} catch (KuraException e) {
 				s_logger.error("Unable to publish message", e);
