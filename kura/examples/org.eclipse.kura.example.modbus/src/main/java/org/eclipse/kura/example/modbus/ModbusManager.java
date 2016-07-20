@@ -26,21 +26,24 @@ import java.util.concurrent.TimeUnit;
 
 import org.eclipse.kura.KuraException;
 import org.eclipse.kura.cloud.CloudClient;
-import org.eclipse.kura.cloud.CloudClientListener;
-import org.eclipse.kura.cloud.CloudService;
+import org.eclipse.kura.cloud.Cloudlet;
+import org.eclipse.kura.cloud.CloudletTopic;
 import org.eclipse.kura.configuration.ConfigurableComponent;
 import org.eclipse.kura.example.modbus.parser.ModbusConfigParser;
 import org.eclipse.kura.example.modbus.parser.ScannerConfig;
 import org.eclipse.kura.example.modbus.parser.ScannerConfigParser;
+import org.eclipse.kura.example.modbus.register.Command;
 import org.eclipse.kura.example.modbus.register.ModbusResources;
 import org.eclipse.kura.message.KuraPayload;
+import org.eclipse.kura.message.KuraRequestPayload;
+import org.eclipse.kura.message.KuraResponsePayload;
 import org.eclipse.kura.protocol.modbus.ModbusProtocolDeviceService;
 import org.eclipse.kura.protocol.modbus.ModbusProtocolException;
 import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class ModbusManager implements ConfigurableComponent, KuraChangeListener, CloudClientListener {
+public class ModbusManager extends Cloudlet implements ConfigurableComponent, KuraChangeListener {
 
 	private static final Logger s_logger = LoggerFactory.getLogger(ModbusManager.class);
 
@@ -55,9 +58,9 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 	private static final String PROP_STOPBITS = "stopBits";
 	private static final String PROP_PARITY = "parity";
 
-	private static final String CTRL_TOPIC = "/command";
+	private static final String COMMAND_TOPIC = "command";
 
-	private CloudService cloudService;
+//	private CloudService cloudService;
 	private CloudClient cloudClient;
 	public static ModbusProtocolDeviceService protocolDevice;
 
@@ -69,7 +72,9 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 	private Map<String,List<Integer>> devices;
 	private Map<String,ModbusConfiguration> pollGroups;
 	private Map<String,PublishConfiguration> publishGroups;
+	private Map<String,Map<String,Command>> commands;
 	private List<Metric> metrics;
+	private List<Metric> oldMetrics;
 
 	private ScheduledExecutorService pollExecutor;
 	private ScheduledExecutorService publishExecutor;
@@ -77,17 +82,18 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 	private Map<String, ModbusWorker> workers = new HashMap<String,ModbusWorker>();
 
 	public ModbusManager() {
+		super(APP_ID);
 		pollExecutor = Executors.newScheduledThreadPool(5);
 		publishExecutor = Executors.newScheduledThreadPool(5);
 	}
 
-	protected void setCloudService(CloudService cloudService) {
-		this.cloudService = cloudService;
-	}
-
-	protected void unsetCloudService(CloudService cloudService) {
-		this.cloudService = null;
-	}
+//	protected void setCloudService(CloudService cloudService) {
+//		this.cloudService = cloudService;
+//	}
+//
+//	protected void unsetCloudService(CloudService cloudService) {
+//		this.cloudService = null;
+//	}
 
 	public void setModbusProtocolDeviceService(ModbusProtocolDeviceService modbusService) {
 		this.protocolDevice = modbusService;
@@ -103,13 +109,16 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 		configured = false;
 		publishHandles = new HashMap<String,ScheduledFuture<?>>();
 
-		try {
-			cloudClient = cloudService.newCloudClient(APP_ID);
-			cloudClient.addCloudClientListener(this);
-			updated(ctx, properties);
-		} catch (KuraException e) {
-			s_logger.error("Configuration update failed", e);
-		}
+//		try {
+//			cloudClient = cloudService.newCloudClient(APP_ID);
+//			cloudClient.addCloudClientListener(this);
+		super.activate(ctx);
+		cloudClient = super.getCloudApplicationClient();
+			
+		updated(ctx, properties);
+//		} catch (KuraException e) {
+//			s_logger.error("Configuration update failed", e);
+//		}
 	}
 
 	protected void deactivate(ComponentContext ctx) {
@@ -140,7 +149,11 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 
 		configured = false;
 
-		cloudClient.release();
+		if (getCloudApplicationClient() != null) {
+			super.deactivate(ctx);
+		}
+		
+//		cloudClient.release();
 	}
 
 	protected void updated(ComponentContext ctx, Map<String, Object> properties) {
@@ -167,6 +180,11 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 		publishHandles.clear();
 
 		initializeMetrics();
+		
+		if (commands == null) {
+			commands = new HashMap<String,Map<String,Command>>();
+		}
+		commands.clear();
 		
 		final KuraChangeListener kuraChangeListener = this;
 		new Thread(new Runnable() {
@@ -200,8 +218,7 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 							publishHandles.put(entry.getKey(), publishExecutor.scheduleAtFixedRate(new Runnable() {
 								@Override
 								public void run() {
-									publishMessage(entry.getValue().getName(), entry.getValue().getTopic(), entry.getValue().getQos());
-									// Manca onChange!!!!
+									publishMessage(entry.getValue());
 								}
 							}, 2000, entry.getValue().getInterval(), TimeUnit.MILLISECONDS));
 						}
@@ -262,6 +279,11 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 			publishGroups.put(config.getName(), config);
 		}
 		
+		// Get Commands
+		for (String model : devices.keySet()) {
+			commands.put(model, ModbusConfigParser.getCommands(model));
+		}
+		
 	}
 
 	private boolean isConfigured(ModbusConfiguration config) {
@@ -271,23 +293,27 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 //			return false;
 	}
 	
-	private synchronized void publishMessage(String publishGroup, String topic, Integer qos){
+	private synchronized void publishMessage(PublishConfiguration configuration) {
 
 		s_logger.debug("PublishMessage()");
-		Map<Integer,List<Metric>> deviceMetricList= new HashMap<Integer,List<Metric>>();
+		Map<Integer,List<Metric>> deviceMetricList = new HashMap<Integer,List<Metric>>();
 		
 		s_logger.debug("Add {} metrics to deviceMetricList...",metrics.size());
 		for (Metric metric : metrics) {
-			if (metric.getPublishGroup().equals(publishGroup)) {
-				Metric metricCopy = new Metric(metric);
-				metrics.remove(metric);
+			if (metric.getPublishGroup().equals(configuration.getName())) {
+				if (!configuration.getOnChange() || (configuration.getOnChange() && isMetricChanged(metric))) {
+					Metric metricCopy = new Metric(metric);
+					metrics.remove(metric);
 
-				if (deviceMetricList.get(metricCopy.getSlaveAddress()) == null) {
-					List<Metric> metricList = new ArrayList<Metric>();
-					metricList.add(metricCopy);
-					deviceMetricList.put(metricCopy.getSlaveAddress(), metricList);
+					if (deviceMetricList.get(metricCopy.getSlaveAddress()) == null) {
+						List<Metric> metricList = new ArrayList<Metric>();
+						metricList.add(metricCopy);
+						deviceMetricList.put(metricCopy.getSlaveAddress(), metricList);
+					} else {
+						deviceMetricList.get(metricCopy.getSlaveAddress()).add(metricCopy);
+					}
 				} else {
-					deviceMetricList.get(metricCopy.getSlaveAddress()).add(metricCopy);
+					metrics.remove(metric);
 				}
 			}
 		}
@@ -304,8 +330,8 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 			}
 			
 			try {
-				s_logger.debug("Publish Message on {} ", entry.getKey() + "/" + topic);
-				cloudClient.publish(entry.getKey() + "/" + topic, payload, qos, false);
+				s_logger.debug("Publish Message on {} ", entry.getKey() + "/" + configuration.getTopic());
+				cloudClient.publish(entry.getKey() + "/" + configuration.getTopic(), payload, configuration.getQos(), false);
 			} catch (KuraException e) {
 				s_logger.error("Unable to publish message", e);
 			}
@@ -396,63 +422,6 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 			configured = true;
 		}
 	}
-
-	@Override
-	public void onControlMessageArrived(String deviceId, String appTopic, KuraPayload msg, int qos, boolean retain) {
-		s_logger.info("EDC control message received on topic: {}", appTopic);
-		
-		if (appTopic.contains(CTRL_TOPIC) && msg.getMetric("command") != null) {
-			String[] tokens = ((String) msg.getMetric("command")).split(",");
-			// command=slaveAddress,functionCode,registerAddress,data;
-			int slaveAddress = Integer.parseInt(tokens[0]);
-			int registerAddress = Integer.parseInt(tokens[2]);
-			int[] data = new int[tokens.length-3];
-			for (int i = 3; i < tokens.length; i++)
-				data[i-3] = Integer.parseInt(tokens[i]);
-
-//			int data = Integer.parseInt(tokens[3]);
-			try {
-				writeMultipleRegister(slaveAddress, registerAddress, data);
-//				writeSingleRegister(slaveAddress, registerAddress, data);
-			} catch (ModbusProtocolException e) {
-				s_logger.error("Unable to write to device", e);
-			}
-		}
-		
-	}
-	
-	private synchronized void writeMultipleRegister(int unitAddr, int dataAddress, int[] data) throws ModbusProtocolException {
-		ModbusManager.protocolDevice.writeMultipleRegister(unitAddr, dataAddress, data);
-	}
-
-	private synchronized void writeSingleRegister(int unitAddr, int dataAddress, int data) throws ModbusProtocolException {
-		ModbusManager.protocolDevice.writeSingleRegister(unitAddr, dataAddress, data);
-	}
-	
-	@Override
-	public void onMessageArrived(String deviceId, String appTopic, KuraPayload msg, int qos, boolean retain) {
-		// Not implemented
-	}
-
-	@Override
-	public void onConnectionLost() {
-		// Not implemented
-	}
-
-	@Override
-	public void onConnectionEstablished() {
-		// Not implemented
-	}
-
-	@Override
-	public void onMessageConfirmed(int messageId, String appTopic) {
-		// Not implemented
-	}
-
-	@Override
-	public void onMessagePublished(int messageId, String appTopic) {
-		// Not implemented
-	}
 	
 	private void searchForDevices() {
 		if (devices == null) {
@@ -500,5 +469,113 @@ public class ModbusManager implements ConfigurableComponent, KuraChangeListener,
 			metrics = new CopyOnWriteArrayList<Metric>(new ArrayList<Metric>());
 		}
 		metrics.clear();
+		
+		if (oldMetrics == null) {
+			oldMetrics = new ArrayList<Metric>();
+		}
+		oldMetrics.clear();
 	}
+	
+	private boolean isMetricChanged(Metric metric) {
+		boolean isChanged = true;
+		for (Metric oldMetric : oldMetrics) {
+			if (oldMetric.getMetricName().equals(metric.getMetricName()) && (oldMetric.getSlaveAddress() == metric.getSlaveAddress())) {
+				if (oldMetric.compareData(metric)) {
+					isChanged = false;
+				} else {
+					oldMetrics.remove(oldMetric);
+				}
+				break;
+			}
+		}
+		if (isChanged) {
+			oldMetrics.add(new Metric(metric));
+		}
+		return isChanged;
+	}
+	
+	private String searchModel(Integer slaveAddress) {
+		String model = "";
+		for (Entry<String,List<Integer>> entry : devices.entrySet()) {
+			if (entry.getValue().contains(slaveAddress)) {
+				model = entry.getKey();
+			}
+		}
+		return model;
+	}
+	
+	@Override
+	protected void doExec(CloudletTopic reqTopic, KuraRequestPayload reqPayload, KuraResponsePayload respPayload) throws KuraException {
+
+		s_logger.debug("EXEC received!");
+		
+		String[] resources = reqTopic.getResources();
+		
+		if (resources == null || resources.length != 3) {
+			s_logger.error("Bad request topic: {}", reqTopic.toString());
+			s_logger.error("Expected one resource but found {}",
+					resources != null ? resources.length : "none");
+			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_BAD_REQUEST);
+			return;
+		}
+
+		Integer slaveAddress = Integer.parseInt(resources[1],16);
+		String model = searchModel(slaveAddress);
+		if (model.isEmpty()) {
+			s_logger.warn("No model found for command.");
+			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_ERROR);
+			return;
+		}
+		
+		Map<String,Command> availableCommands = commands.get(model);
+		if (availableCommands == null) {
+			s_logger.warn("No commands found for {}.", model);
+			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_ERROR);
+			return;
+		}
+		
+		Command c = availableCommands.get(resources[2]); 
+		if (c == null) {
+			s_logger.warn("Command {} not supported for model {}.", resources[2], model);
+			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_NOTFOUND);
+			return;			
+		}
+		
+		try {
+			if ("HR".equals(c.getType())) {
+				int[] data = {c.getCommandValue()};
+				writeMultipleRegister(slaveAddress.intValue(), c.getAddress().intValue(), data);
+				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
+			} else if ("C".equals(c.getType())) {
+				writeSingleCoil(slaveAddress.intValue(), c.getAddress().intValue(), c.getCommandValue() == 1 ? true : false);
+				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
+			} else {
+				s_logger.error("Bad request topic: {}", reqTopic.toString());
+				s_logger.error("Cannot find resource with name: {}", resources[0]);
+				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_NOTFOUND);
+				return;				
+			}
+		} catch (ModbusProtocolException e) {
+			s_logger.error("Modbus write command failed.", e);
+			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_ERROR);
+		}
+
+	}
+	
+	private synchronized void writeSingleRegister(int unitAddr, int dataAddress, int data) throws ModbusProtocolException {
+		protocolDevice.writeSingleRegister(unitAddr, dataAddress, data);
+	}
+	
+	private synchronized void writeMultipleRegister(int unitAddr, int dataAddress, int[] data) throws ModbusProtocolException {
+		protocolDevice.writeMultipleRegister(unitAddr, dataAddress, data);
+	}
+	
+	private synchronized void writeSingleCoil(int unitAddr, int dataAddress, boolean data) throws ModbusProtocolException {
+		protocolDevice.writeSingleCoil(unitAddr, dataAddress, data);
+	}
+	
+	private synchronized void writeMultipleCoils(int unitAddr, int dataAddress, boolean[] data) throws ModbusProtocolException {
+		protocolDevice.writeMultipleCoils(unitAddr, dataAddress, data);
+	}
+	
 }

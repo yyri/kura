@@ -47,7 +47,7 @@ public class Metric {
 	public void setPublishGroup(String publishGroup) {
 		this.publishGroup = publishGroup;
 	}
-	public Integer getSlaveAddress() {
+	public int getSlaveAddress() {
 		return slaveAddress;
 	}
 	
@@ -61,5 +61,19 @@ public class Metric {
 
 	public void setData(Object data) {
 		this.data = data;
+	}
+	
+	public boolean compareData(Metric metric) {
+		boolean equal = false;
+		if (metric != null) {
+			if (this.data instanceof Float) {
+				equal = metric.getData() instanceof Float && this.data.equals((Float) metric.getData());
+			} else if (metric.getData() instanceof Boolean) { 
+				equal = metric.getData() instanceof Boolean && this.data.equals((Boolean) metric.getData());
+			} else if (metric.getData() instanceof String) {
+				equal = metric.getData() instanceof String && this.data.equals((String) metric.getData());
+			}
+		}
+		return equal;
 	}
 }

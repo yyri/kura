@@ -12,6 +12,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import org.eclipse.kura.example.modbus.ModbusConfiguration;
 import org.eclipse.kura.example.modbus.ModbusManager;
 import org.eclipse.kura.example.modbus.PublishConfiguration;
+import org.eclipse.kura.example.modbus.register.Command;
 import org.eclipse.kura.example.modbus.register.Field;
 import org.eclipse.kura.example.modbus.register.ModbusResources;
 import org.eclipse.kura.example.modbus.register.Option;
@@ -125,10 +126,41 @@ public class ModbusConfigParser {
 		return publishConfigurations;
 	}
 	
+	public static Map<String,Command> getCommands(String model) {
+		Map<String,Command> commands = null;
+		Element configuration = doc.getDocumentElement();
+		configuration.normalize();
+		
+		NodeList assets = doc.getElementsByTagName("assets").item(0).getChildNodes();
+		Element asset;
+		for (int i = 0; i < assets.getLength(); i++) {
+			Node node = assets.item(i);
+			if (node.getNodeType() == Node.ELEMENT_NODE) {
+				asset = (Element) node;
+				if (!model.equals(asset.getElementsByTagName("model").item(0).getTextContent())) {
+					continue;
+				}
+
+				NodeList resources = asset.getChildNodes();
+				for (int j = 0; j < resources.getLength(); j++) {
+					Node resource = resources.item(j); // Holding register or coils
+					if ("holdingRegisters".equals(resource.getNodeName())) {
+						commands = getCommands(((Element) resource).getElementsByTagName("commands").item(0), "HR");
+					} else if ("coils".equals(resource.getNodeName())) {
+						commands = getCommands(((Element) resource).getElementsByTagName("commands").item(0), "C");
+					}
+				}
+			}
+		
+		}
+		
+		return commands;
+	}
+	
 	private static void addModbusResources(NodeList registersList, HashMap<String, List<ModbusResources>> modbusResourcesMap, List<Integer> slaveAddresses, String type) {
 		for (int k = 0; k < registersList.getLength(); k++) {
 			Node registers = registersList.item(k);
-			if (registers.getNodeType() == Node.ELEMENT_NODE) {
+			if (registers.getNodeType() == Node.ELEMENT_NODE && "registers".equals(registers.getNodeName())) {
 				Element registersElement = (Element) registers;
 				ModbusResources modbusResources = new ModbusResources();
 				modbusResources.setRegisterAddress(registersElement.getElementsByTagName("address").item(0).getTextContent());
@@ -198,5 +230,33 @@ public class ModbusConfigParser {
 			}
 		}
 		return r;
+	}
+	
+	private static Map<String,Command> getCommands(Node commandsNode, String type) {
+		Map<String,Command> commands = new HashMap<String,Command>();
+		NodeList commandNodeList = commandsNode.getChildNodes();
+		for (int i = 0; i < commandNodeList.getLength(); i++) {
+			Node commandNode = commandNodeList.item(i);
+			Element commandElement;
+			if (commandNode.getNodeType() == Node.ELEMENT_NODE) {
+				commandElement = (Element) commandNode;
+				NodeList fields = commandElement.getElementsByTagName("fields").item(0).getChildNodes();
+				for (int j = 0; j < fields.getLength(); j++) {
+					Node fieldNode = fields.item(j);
+					Element fieldElement;
+					if (fieldNode.getNodeType() == Node.ELEMENT_NODE) {
+						fieldElement = (Element) fieldNode;
+						Command c = new Command();
+						c.setType(type);
+						c.setAddress(Integer.parseInt(commandElement.getElementsByTagName("address").item(0).getTextContent(),16));
+						c.setCommandName(fieldElement.getElementsByTagName("name").item(0).getTextContent());
+						c.setCommandValue(Integer.parseInt(fieldElement.getElementsByTagName("value").item(0).getTextContent(),16));
+						commands.put(c.getCommandName(),c);
+					}
+				}
+			}
+		}
+		
+		return commands;
 	}
 }
