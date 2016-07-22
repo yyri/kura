@@ -30,13 +30,13 @@ public class KuraException extends Exception
 
 	private static final Logger s_logger = LoggerFactory.getLogger(KuraException.class);
 	
-	private static final String KURA_GENERIC_MESSAGES_PATTERN = "Generic Error - {0}: {1}";
-	private static final String KURA_EXCEPTION_MESSAGES_BUNDLE = "org.eclipse.kura.core.messages.KuraExceptionMessagesBundle";
-
+	private static final String KURA_ERROR_MESSAGES  = "org.eclipse.kura.core.messages.KuraExceptionMessagesBundle";
+    private static final String KURA_GENERIC_MESSAGE = "Generic Error - {0}: {1}";
+	
 	//TODO - add back when logger is working
 	//private static final Logger s_logger = LoggerFactory.getLogger(KuraException.class);
 
-	protected KuraErrorCode m_code;
+	protected KuraErrorCodeInterface m_code;
 	private Object[] m_arguments;
 
 	@SuppressWarnings("unused")
@@ -51,7 +51,7 @@ public class KuraException extends Exception
 	 * @param t
 	 * @param arguments
 	 */
-	public KuraException(KuraErrorCode code) {
+	public KuraException(KuraErrorCodeInterface code) {
 		m_code = code;
 	}
 
@@ -62,7 +62,7 @@ public class KuraException extends Exception
 	 * @param t
 	 * @param arguments
 	 */
-	public KuraException(KuraErrorCode code, Object... arguments) {
+	public KuraException(KuraErrorCodeInterface code, Object... arguments) {
 		m_code = code;
 		m_arguments = arguments;
 	}
@@ -74,7 +74,7 @@ public class KuraException extends Exception
 	 * @param t
 	 * @param arguments
 	 */
-	public KuraException(KuraErrorCode code, Throwable cause, Object... arguments) {
+	public KuraException(KuraErrorCodeInterface code, Throwable cause, Object... arguments) {
 		super(cause);
 		m_code = code;
 		m_arguments = arguments;
@@ -113,11 +113,10 @@ public class KuraException extends Exception
 		return new KuraException(KuraErrorCode.INTERNAL_ERROR, null, message);
 	}
 
-	
+	@Deprecated
 	public KuraErrorCode getCode() {
-		return m_code;
+		return (KuraErrorCode) m_code;
 	}
-
 	
 	public String getMessage() {
 		return getLocalizedMessage(Locale.US);
@@ -127,9 +126,14 @@ public class KuraException extends Exception
 	public String getLocalizedMessage() {
 		return getLocalizedMessage(Locale.getDefault());
 	}
+	
+	protected String getKuraErrorMessagesBundle()
+    {
+        return KURA_ERROR_MESSAGES;
+    }
 
 	
-	private String getLocalizedMessage(Locale locale) 
+	protected String getLocalizedMessage(Locale locale) 
 	{
 		String pattern = getMessagePattern(locale, m_code);
 		if (m_code == null || KuraErrorCode.INTERNAL_ERROR.equals(m_code)) {
@@ -148,7 +152,7 @@ public class KuraException extends Exception
 	}
 	
 
-	private String getMessagePattern(Locale locale, KuraErrorCode code) 
+	protected String getMessagePattern(Locale locale, KuraErrorCodeInterface code) 
 	{
 		//
 		// Load the message pattern from the bundle
@@ -156,7 +160,7 @@ public class KuraException extends Exception
 		ResourceBundle resourceBundle = null;
 		try {
 			
-			resourceBundle = ResourceBundle.getBundle(KURA_EXCEPTION_MESSAGES_BUNDLE, locale);
+			resourceBundle = ResourceBundle.getBundle(getKuraErrorMessagesBundle(), locale);
 			if (resourceBundle != null && code != null) {
 				messagePattern = resourceBundle.getString(code.name());
 				if (messagePattern == null) {
@@ -173,11 +177,11 @@ public class KuraException extends Exception
 		if (messagePattern == null) {
 			if (code != null) {
 				// build a generic message format
-				messagePattern = MessageFormat.format(KURA_GENERIC_MESSAGES_PATTERN, code.name());
+				messagePattern = MessageFormat.format(KURA_GENERIC_MESSAGE, code.name());
 			}
 			else {
 				// build a generic message format
-				messagePattern = MessageFormat.format(KURA_GENERIC_MESSAGES_PATTERN, "Unknown");			
+				messagePattern = MessageFormat.format(KURA_GENERIC_MESSAGE, "Unknown");			
 			}
 		}
 

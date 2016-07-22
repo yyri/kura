@@ -21,7 +21,7 @@ import junit.framework.TestCase;
 import org.eclipse.kura.cloud.CloudCallService;
 import org.eclipse.kura.cloud.CloudletTopic;
 import org.eclipse.kura.core.deployment.CloudDeploymentHandlerV2;
-import org.eclipse.kura.core.deployment.download.DeploymentPackageDownloadOptions;
+import org.eclipse.kura.core.deployment.download.impl.DeploymentDownloadOptionsImpl;
 import org.eclipse.kura.core.deployment.xml.XmlBundle;
 import org.eclipse.kura.core.deployment.xml.XmlBundleInfo;
 import org.eclipse.kura.core.deployment.xml.XmlBundles;
@@ -131,13 +131,13 @@ public class CloudDeploymentHandlerTest extends TestCase {
 
 		
 		KuraPayload payload = new KuraPayload();
-		payload.addMetric(DeploymentPackageDownloadOptions.METRIC_DP_DOWNLOAD_URI, DOWNLOAD_URI);
-		payload.addMetric(DeploymentPackageDownloadOptions.METRIC_DP_NAME, DP_NAME);
-		payload.addMetric(DeploymentPackageDownloadOptions.METRIC_DP_VERSION, DP_VERSION);
-		payload.addMetric(DeploymentPackageDownloadOptions.METRIC_DP_DOWNLOAD_PROTOCOL, DOWNLOAD_PROTOCOL);
-		payload.addMetric(DeploymentPackageDownloadOptions.METRIC_JOB_ID, Long.parseLong("1111")); 
-		payload.addMetric(DeploymentPackageDownloadOptions.METRIC_DP_INSTALL_SYSTEM_UPDATE, false);
-		payload.addMetric(DeploymentPackageDownloadOptions.METRIC_DP_INSTALL, true);
+		payload.addMetric(DeploymentDownloadOptionsImpl.METRIC_DP_DOWNLOAD_URI, DOWNLOAD_URI);
+		payload.addMetric(DeploymentDownloadOptionsImpl.METRIC_DP_NAME, DP_NAME);
+		payload.addMetric(DeploymentDownloadOptionsImpl.METRIC_DP_VERSION, DP_VERSION);
+		payload.addMetric(DeploymentDownloadOptionsImpl.METRIC_DP_DOWNLOAD_PROTOCOL, DOWNLOAD_PROTOCOL);
+		payload.addMetric(DeploymentDownloadOptionsImpl.METRIC_JOB_ID, Long.parseLong("1111")); 
+		payload.addMetric(DeploymentDownloadOptionsImpl.METRIC_DP_INSTALL_SYSTEM_UPDATE, false);
+		payload.addMetric(DeploymentDownloadOptionsImpl.METRIC_DP_INSTALL, true);
 
 		KuraResponsePayload resp = s_cloudCallService.call(
 				CloudDeploymentHandlerV2.APP_ID,
@@ -325,8 +325,8 @@ public class CloudDeploymentHandlerTest extends TestCase {
 		
 		KuraPayload payload = new KuraPayload();
 		//payload.setBody("org.eclipse.kura.test.helloworld".getBytes("UTF-8"));
-		payload.addMetric(DeploymentPackageDownloadOptions.METRIC_DP_NAME, BUNDLE_NAME);
-		payload.addMetric(DeploymentPackageDownloadOptions.METRIC_JOB_ID, Long.parseLong("1111")); 
+		payload.addMetric(DeploymentDownloadOptionsImpl.METRIC_DP_NAME, BUNDLE_NAME);
+		payload.addMetric(DeploymentDownloadOptionsImpl.METRIC_JOB_ID, Long.parseLong("1111")); 
 		
 		KuraResponsePayload resp = s_cloudCallService.call(
 				CloudDeploymentHandlerV2.APP_ID,

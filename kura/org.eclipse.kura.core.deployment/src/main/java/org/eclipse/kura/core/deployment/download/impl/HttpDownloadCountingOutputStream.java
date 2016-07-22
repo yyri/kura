@@ -1,13 +1,12 @@
 /*******************************************************************************
  * Copyright (c) 2011, 2016 Eurotech and/or its affiliates
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
+ * All rights reserved. This program and the accompanying materials are made
+ * available under the terms of the Eclipse Public License v1.0 which
+ * accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  *
- * Contributors:
- *     Eurotech
+ * Contributors: Eurotech
  *******************************************************************************/
 package org.eclipse.kura.core.deployment.download.impl;
 
@@ -30,139 +29,134 @@ import org.apache.commons.io.IOUtils;
 import org.eclipse.kura.KuraConnectException;
 import org.eclipse.kura.KuraErrorCode;
 import org.eclipse.kura.KuraException;
-import org.eclipse.kura.core.deployment.CloudDeploymentHandlerV2.DOWNLOAD_STATUS;
 import org.eclipse.kura.core.deployment.download.DownloadCountingOutputStream;
-import org.eclipse.kura.core.deployment.download.DownloadOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class HttpDownloadCountingOutputStream extends GenericDownloadCountingOutputStream implements DownloadCountingOutputStream {
-	private static final Logger s_logger = LoggerFactory.getLogger(HttpDownloadCountingOutputStream.class);
+    private static final Logger s_logger = LoggerFactory.getLogger(HttpDownloadCountingOutputStream.class);
 
-	private ExecutorService executor;
-	private Future<Void> future;
+    private ExecutorService executor;
+    private Future<Void>    future;
 
+    public HttpDownloadCountingOutputStream(DownloadOptionsImpl downloadOptions) {
+        super(downloadOptions);
+        setBufferSize(options.getBlockSize());
+        setResolution(options.getNotifyBlockSize());
+        setBlockDelay(options.getBlockDelay());
+        setConnectTimeout(options.getTimeout());
+    }
 
-	public HttpDownloadCountingOutputStream(DownloadOptions downloadOptions) {
-		super(downloadOptions);
-		setBufferSize(options.getBlockSize());
-		setResolution(options.getNotifyBlockSize());
-		setBlockDelay(options.getBlockDelay());
-		setConnectTimeout(options.getTimeout());
-	}
+    @Override
+    public void cancelDownload() {
+        if (executor != null && future != null) {
+            future.cancel(true);
+            executor.shutdownNow();
 
-	@Override
-	public void cancelDownload() throws Exception{
-		if(executor != null && future != null){
-			future.cancel(true);
-			executor.shutdownNow();
+            postProgressEvent(totalBytes, DownloadStatusImpl.CANCELLED, "Download cancelled");
+        }
+    }
 
-			postProgressEvent(options.getClientId(), getByteCount(), totalBytes, DOWNLOAD_STATUS.CANCELLED, "Download cancelled");
-		}
-	}
+    @Override
+    public void startWork() throws KuraException {
 
-	@Override
-	public void startWork() throws KuraException {
+        executor = Executors.newSingleThreadExecutor();
 
-		executor = Executors.newSingleThreadExecutor();
+        future = executor.submit(new Callable<Void>() {
 
-		future = executor.submit(new Callable<Void>(){
+            @Override
+            public Void call() throws Exception {
+                URL localUrl = null;
+                boolean shouldAuthenticate = false;
+                try {
+                    shouldAuthenticate = (options.getUsername() != null) && (options.getPassword() != null)
+                            && !(options.getUsername().trim().isEmpty() && !(options.getPassword().trim().isEmpty()));
 
-			@Override
-			public Void call() throws Exception {
-				URL localUrl = null;
-				boolean shouldAuthenticate = false;
-				try {
-					shouldAuthenticate = (options.getUsername() != null) && (options.getPassword() != null)
-							&& !(options.getUsername().trim().isEmpty() && !(options.getPassword().trim().isEmpty()));
+                    if (shouldAuthenticate) {
+                        Authenticator.setDefault(new Authenticator() {
+                            @Override
+                            protected PasswordAuthentication getPasswordAuthentication() {
+                                return new PasswordAuthentication(options.getUsername(), options.getPassword().toCharArray());
+                            }
+                        });
+                    }
 
-					if (shouldAuthenticate) {
-						Authenticator.setDefault(new Authenticator() {
-							@Override
-							protected PasswordAuthentication getPasswordAuthentication() {
-								return new PasswordAuthentication(options.getUsername(), options.getPassword().toCharArray());
-							}
-						});
-					}
+                    localUrl = new URL(downloadURL);
+                    URLConnection urlConnection = localUrl.openConnection();
+                    int connectTimeout = getConnectTimeout();
+                    int readTimeout = getPropReadTimeout();
+                    urlConnection.setConnectTimeout(connectTimeout);
+                    urlConnection.setReadTimeout(readTimeout);
 
-					localUrl = new URL(m_downloadURL);
-					URLConnection urlConnection = localUrl.openConnection();
-					int connectTimeout = getConnectTimeout();
-					int readTimeout = getPropReadTimeout();
-					urlConnection.setConnectTimeout(connectTimeout);
-					urlConnection.setReadTimeout(readTimeout);
+                    testConnectionProtocol(urlConnection);
 
-					testConnectionProtocol(urlConnection);
+                    is = localUrl.openStream();
 
-					is = localUrl.openStream();
+                    String s = urlConnection.getHeaderField("Content-Length");
+                    s_logger.info("Content-lenght: " + s);
 
-					String s = urlConnection.getHeaderField("Content-Length");
-					s_logger.info("Content-lenght: " + s);
+                    setTotalBytes(s != null ? Integer.parseInt(s) : -1);
+                    postProgressEvent(totalBytes, DownloadStatusImpl.IN_PROGRESS, null);
 
-					setTotalBytes(s != null ? Integer.parseInt(s) : -1);
-					postProgressEvent(options.getClientId(), 0, totalBytes, DOWNLOAD_STATUS.IN_PROGRESS, null);
+                    int bufferSize = getBufferSize();
 
-					int bufferSize = getBufferSize();
+                    if (bufferSize == 0 && getTotalBytes() > 0) {
+                        int newSize = Math.round(totalBytes / 100 * 1);
+                        bufferSize = newSize;
+                        setBufferSize(newSize);
+                    } else if (bufferSize == 0) {
+                        int newSize = 1024 * 4;
+                        bufferSize = newSize;
+                        setBufferSize(newSize);
+                    }
 
-					if (bufferSize == 0 && getTotalBytes() > 0){
-						int newSize= Math.round(totalBytes/100 * 1);
-						bufferSize= newSize;
-						setBufferSize(newSize);
-					} else if (bufferSize == 0) {
-						int newSize= 1024 * 4;
-						bufferSize= newSize;
-						setBufferSize(newSize);
-					}
+                    IOUtils.copyLarge(is, HttpDownloadCountingOutputStream.this, new byte[bufferSize]);
+                    postProgressEvent(totalBytes, DownloadStatusImpl.COMPLETED, null);
 
-					long numBytes = IOUtils.copyLarge(is, HttpDownloadCountingOutputStream.this, new byte[bufferSize]);
-					postProgressEvent(options.getClientId(), numBytes, totalBytes, DOWNLOAD_STATUS.COMPLETED, null);
+                } catch (IOException e) {
+                    postProgressEvent(totalBytes, DownloadStatusImpl.FAILED, e.getMessage());
+                    throw new KuraConnectException(e);
+                } finally {
+                    if (is != null) {
+                        try {
+                            is.close();
+                        } catch (IOException e) {}
+                    }
+                    try {
+                        close();
+                    } catch (IOException e) {}
+                    localUrl = null;
+                    if (shouldAuthenticate) {
+                        Authenticator.setDefault(null);
+                    }
+                }
 
-				} catch (IOException e) {
-					postProgressEvent(options.getClientId(), getByteCount(), totalBytes, DOWNLOAD_STATUS.FAILED, e.getMessage());
-					throw new KuraConnectException(e);
-				} finally {
-					if (is != null) {
-						try {
-							is.close();
-						} catch (IOException e) {
-						}
-					}
-					try {
-						close();
-					} catch (IOException e) {
-					}
-					localUrl = null;
-					if (shouldAuthenticate) {
-						Authenticator.setDefault(null);
-					}
-				}
+                return null;
+            }
 
-				return null;
-			}
+        });
 
-		});
+        try {
+            future.get();
+        } catch (ExecutionException ex) {
+            throw new KuraException(KuraErrorCode.INTERNAL_ERROR, ex);
+        } catch (InterruptedException ex) {
+            throw new KuraException(KuraErrorCode.INTERNAL_ERROR, ex);
+        }
+    }
 
-		try{
-			future.get();
-		}catch(ExecutionException ex){
-			throw new KuraException(KuraErrorCode.INTERNAL_ERROR, ex);
-		}catch(InterruptedException ex){
-			throw new KuraException(KuraErrorCode.INTERNAL_ERROR, ex);
-		}
-	}
-	
-	private void testConnectionProtocol(URLConnection urlConnection)
-			throws IOException, KuraConnectException {
-		try {
-			if (urlConnection instanceof HttpsURLConnection) {
-				((HttpsURLConnection) urlConnection).setSSLSocketFactory(m_sslManagerService.getSSLSocketFactory());
-			} else if (!(urlConnection instanceof HttpURLConnection)) {
-				postProgressEvent(options.getClientId(), getByteCount(), totalBytes, DOWNLOAD_STATUS.FAILED, "The request URL is not supported");
-				throw new KuraConnectException("Unsupported protocol!");
-			}
-		} catch (GeneralSecurityException e) {
-			postProgressEvent(options.getClientId(), getByteCount(), totalBytes, DOWNLOAD_STATUS.FAILED, e.getMessage());
-			throw new KuraConnectException(e, "Unsupported protocol!");
-		}
-	}
+    private void testConnectionProtocol(URLConnection urlConnection)
+            throws IOException, KuraConnectException {
+        try {
+            if (urlConnection instanceof HttpsURLConnection) {
+                ((HttpsURLConnection) urlConnection).setSSLSocketFactory(sslManagerService.getSSLSocketFactory());
+            } else if (!(urlConnection instanceof HttpURLConnection)) {
+                postProgressEvent(totalBytes, DownloadStatusImpl.FAILED, "The request URL is not supported");
+                throw new KuraConnectException("Unsupported protocol!");
+            }
+        } catch (GeneralSecurityException e) {
+            postProgressEvent(totalBytes, DownloadStatusImpl.FAILED, e.getMessage());
+            throw new KuraConnectException(e, "Unsupported protocol!");
+        }
+    }
 }

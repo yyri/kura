@@ -9,21 +9,20 @@
  * Contributors:
  *     Eurotech
  *******************************************************************************/
-
 package org.eclipse.kura.core.deployment.download;
 
 import java.io.IOException;
 
 import org.eclipse.kura.KuraException;
-import org.eclipse.kura.core.deployment.CloudDeploymentHandlerV2.DOWNLOAD_STATUS;
+import org.eclipse.kura.core.deployment.download.impl.DownloadStatusImpl;
 
 public interface DownloadCountingOutputStream {
 
-	public void cancelDownload() throws Exception;
+	public void cancelDownload();
 	
 	public void startWork() throws KuraException;
 	
-	public DOWNLOAD_STATUS getDownloadTransferStatus();
+	public DownloadStatusImpl getDownloadTransferStatus();
 	
 	public Long getDownloadTransferProgressPercentage();
 	

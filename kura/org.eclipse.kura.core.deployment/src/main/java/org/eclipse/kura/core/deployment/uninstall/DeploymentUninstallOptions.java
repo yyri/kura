@@ -8,27 +8,10 @@
  *
  * Contributors: Eurotech
  *******************************************************************************/
-package org.eclipse.kura.core.deployment.xml;
+package org.eclipse.kura.core.deployment.uninstall;
 
-public class XmlBundleInfo {
+import org.eclipse.kura.core.deployment.DeploymentOptions;
 
-    private String name;
+public interface DeploymentUninstallOptions extends DeploymentOptions {
 
-    private String version;
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getVersion() {
-        return version;
-    }
-
-    public void setVersion(String version) {
-        this.version = version;
-    }
 }

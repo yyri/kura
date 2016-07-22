@@ -16,7 +16,7 @@ package org.eclipse.kura;
  * KuraExceptionMessagesBundle.properties.
  * 
  */
-public enum KuraErrorCode {
+public enum KuraErrorCode implements KuraErrorCodeInterface {
 	CONFIGURATION_ERROR,
 	CONFIGURATION_UPDATE,
 	CONFIGURATION_ROLLBACK,

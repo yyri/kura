@@ -24,7 +24,7 @@ import org.eclipse.kura.KuraException;
 
 public class HashUtil {
 
-	public static String hash(String digestAlgorithm, File file) throws IOException, Exception
+	public static String hash(String digestAlgorithm, File file) throws IOException, KuraException, NoSuchAlgorithmException
 	{
 		MessageDigest cript = null;
 		FileInputStream fis = null;
