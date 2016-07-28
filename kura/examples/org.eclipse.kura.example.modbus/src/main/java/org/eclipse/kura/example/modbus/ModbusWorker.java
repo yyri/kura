@@ -54,8 +54,18 @@ public class ModbusWorker {
 				result = ModbusManager.protocolDevice.readDiscreteInputs(slaveAddress, registerAddress, count);
 			} else if ("HR".equals(type)) {
 				result = ModbusManager.protocolDevice.readHoldingRegisters(slaveAddress, registerAddress, count);
+				// Force short convertion and back to recover sign
+				for (int i = 0; i < ((int[]) result).length; i++) {
+					short r = (short) ((int[]) result)[i];
+					((int[]) result)[i] = r;
+				}				
 			} else if ("IR".equals(type)) {
 				result = ModbusManager.protocolDevice.readInputRegisters(slaveAddress, registerAddress, count);
+				// Force short convertion and back to recover sign
+				for (int i = 0; i < ((int[]) result).length; i++) {
+					short r = (short) ((int[]) result)[i];
+					((int[]) result)[i] = r;
+				}	
 			} else {
 				result = null;
 			}
@@ -121,7 +131,17 @@ public class ModbusWorker {
 		}
 
 		private void getMetric(boolean[] modbusData, ModbusResources resource, Integer slaveAddress) {
-			
+			for (boolean d : modbusData)
+				s_logger.debug("Read {}", d);
+			List<Register> rList = resource.getRegisters();
+			for (int i = 0; i < rList.size(); i++) {
+				Register r = rList.get(i);
+				if ("bitmap16".equals(r.getType())) {
+					for (Field f : r.getFields()) {
+						data.add(new Metric(f.getName(), r.getPublishGroup(), slaveAddress, modbusData[i]));
+					}
+				}
+			}
 		}
 	}
 

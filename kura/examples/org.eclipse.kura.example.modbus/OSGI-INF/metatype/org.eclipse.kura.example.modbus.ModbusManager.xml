@@ -115,6 +115,15 @@
             <Option label="Space" value="4"/>
         </AD>
 
+        <AD id="customer.name"
+            name="customer.name"
+            type="String"
+            cardinality="0"
+            required="true"
+            default=""
+            max="65535"
+            description="The name of the customer that will be used on the publish topic."/>
+            
         <AD id="plc.scan"
             name="plc.scan"
             type="String"

@@ -11,6 +11,7 @@ public class ScannerConfig {
 	private Integer interval;
 	private Integer minRange;
 	private Integer maxRange;
+	private Map<String,Map<Integer,Integer>> models;
 	private Map<Integer,String> assets;
 	private List<Integer> blacklist;
 	
@@ -19,6 +20,7 @@ public class ScannerConfig {
 		this.interval = 0;
 		this.minRange = 0;
 		this.maxRange = 255;
+		this.models = new HashMap<String,Map<Integer,Integer>>();
 		this.assets = new HashMap<Integer,String>();
 		this.blacklist = new ArrayList<Integer>();
 	}
@@ -51,6 +53,14 @@ public class ScannerConfig {
 		return maxRange;
 	}
 	
+	public Map<String, Map<Integer, Integer>> getModels() {
+		return models;
+	}
+
+	public void setModels(Map<String, Map<Integer, Integer>> models) {
+		this.models = models;
+	}
+
 	public void setMaxRange(Integer maxRange) {
 		this.maxRange = maxRange;
 	}

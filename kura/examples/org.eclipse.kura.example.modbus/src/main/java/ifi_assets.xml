@@ -21,14 +21,14 @@
 	<publishGroups>
 		<publishGroup>
 			<name>dataGroup</name>
-			<publishInterval>300000</publishInterval>
+			<publishInterval>10000</publishInterval>
 			<onChange>false</onChange>
 			<topic>data</topic>
 			<qos>0</qos>
 		</publishGroup>
 		<publishGroup>
 			<name>alarmGroup</name>
-			<publishInterval>0</publishInterval>
+			<publishInterval>1000</publishInterval>
 			<onChange>true</onChange>
 			<topic>alarm</topic>
 			<qos>0</qos>

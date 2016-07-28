@@ -45,6 +45,8 @@ import org.slf4j.LoggerFactory;
 
 public class ModbusManager extends Cloudlet implements ConfigurableComponent, KuraChangeListener {
 
+	// (kura.service.pid=org.eclipse.kura.cloud.CloudService) ATTENZIONE!
+	
 	private static final Logger s_logger = LoggerFactory.getLogger(ModbusManager.class);
 
 	private static final String APP_ID = "ModbusManager";
@@ -57,10 +59,8 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 	private static final String PROP_BITPERWORD = "bitsPerWord";
 	private static final String PROP_STOPBITS = "stopBits";
 	private static final String PROP_PARITY = "parity";
+	private static final String CUSTOMER_NAME = "customer.name";
 
-	private static final String COMMAND_TOPIC = "command";
-
-//	private CloudService cloudService;
 	private CloudClient cloudClient;
 	public static ModbusProtocolDeviceService protocolDevice;
 
@@ -87,14 +87,6 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 		publishExecutor = Executors.newScheduledThreadPool(5);
 	}
 
-//	protected void setCloudService(CloudService cloudService) {
-//		this.cloudService = cloudService;
-//	}
-//
-//	protected void unsetCloudService(CloudService cloudService) {
-//		this.cloudService = null;
-//	}
-
 	public void setModbusProtocolDeviceService(ModbusProtocolDeviceService modbusService) {
 		this.protocolDevice = modbusService;
 	}
@@ -109,18 +101,13 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 		configured = false;
 		publishHandles = new HashMap<String,ScheduledFuture<?>>();
 
-//		try {
-//			cloudClient = cloudService.newCloudClient(APP_ID);
-//			cloudClient.addCloudClientListener(this);
 		super.activate(ctx);
 		cloudClient = super.getCloudApplicationClient();
 			
 		updated(ctx, properties);
-//		} catch (KuraException e) {
-//			s_logger.error("Configuration update failed", e);
-//		}
 	}
 
+	@Override
 	protected void deactivate(ComponentContext ctx) {
 		s_logger.info("Deactivating ModbusManager...");
 
@@ -153,7 +140,6 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 			super.deactivate(ctx);
 		}
 		
-//		cloudClient.release();
 	}
 
 	protected void updated(ComponentContext ctx, Map<String, Object> properties) {
@@ -180,11 +166,6 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 		publishHandles.clear();
 
 		initializeMetrics();
-		
-		if (commands == null) {
-			commands = new HashMap<String,Map<String,Command>>();
-		}
-		commands.clear();
 		
 		final KuraChangeListener kuraChangeListener = this;
 		new Thread(new Runnable() {
@@ -280,19 +261,17 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 		}
 		
 		// Get Commands
+		if (commands == null) {
+			commands = new HashMap<String,Map<String,Command>>();
+		}
+		commands.clear();
+		
 		for (String model : devices.keySet()) {
 			commands.put(model, ModbusConfigParser.getCommands(model));
 		}
 		
 	}
 
-	private boolean isConfigured(ModbusConfiguration config) {
-//		if (config.getInterval() != 0 && !config.getTopic().isEmpty() && !config.getType().isEmpty() && !config.getMetrics().isEmpty())
-			return true;
-//		else
-//			return false;
-	}
-	
 	private synchronized void publishMessage(PublishConfiguration configuration) {
 
 		s_logger.debug("PublishMessage()");
@@ -331,7 +310,7 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 			
 			try {
 				s_logger.debug("Publish Message on {} ", entry.getKey() + "/" + configuration.getTopic());
-				cloudClient.publish(entry.getKey() + "/" + configuration.getTopic(), payload, configuration.getQos(), false);
+				cloudClient.publish(currentProperties.get(CUSTOMER_NAME) + "/" + entry.getKey() + "/" + configuration.getTopic(), payload, configuration.getQos(), false);
 			} catch (KuraException e) {
 				s_logger.error("Unable to publish message", e);
 			}
@@ -388,7 +367,7 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 				timeout="1000";
 			
 			if(serialMode!=null) {
-				if(serialMode.equalsIgnoreCase("RS232") || serialMode.equalsIgnoreCase("RS485")) {
+				if("RS232".equalsIgnoreCase(serialMode) || "RS485".equalsIgnoreCase(serialMode)) {
 					prop.setProperty("connectionType", "SERIAL");
 					prop.setProperty("serialMode", serialMode);
 					prop.setProperty("port", portName);
@@ -461,7 +440,39 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 	}
 	
 	private void scanForDevices(ScannerConfig scannerConfig) {
-		// Perform scan... currently not supported.
+		
+		// It is executed twice... Please fix it.
+		s_logger.debug("Start scan for devices...");
+		
+		long now = System.currentTimeMillis();
+		while((System.currentTimeMillis() - now) < new Long(scannerConfig.getInterval())) {
+			// Use registers 1 and 2 for model detection for now!
+			for (int i = scannerConfig.getMinRange(); i < scannerConfig.getMaxRange(); i++) {
+				try {
+					int reg1 = protocolDevice.readHoldingRegisters(i, 1, 1)[0];
+					int reg2 = protocolDevice.readHoldingRegisters(i, 2, 1)[0];
+					for (Entry<String,Map<Integer,Integer>> entry : scannerConfig.getModels().entrySet()) {
+						if (entry.getValue().get(1).equals(reg1) && entry.getValue().get(2).equals(reg2)) {
+							s_logger.debug("Found device {} @ {}", entry.getKey(), i);
+							if (devices.get(entry.getKey()) == null) {
+								ArrayList<Integer> slaveAddresses = new ArrayList<Integer>();
+								slaveAddresses.add(i);
+								devices.put(entry.getKey(), slaveAddresses);
+							} else {
+								if (!devices.get(entry.getKey()).contains(i)) {
+									devices.get(entry.getKey()).add(i);
+								}
+							}
+						}
+					}
+				} catch (ModbusProtocolException e) {
+					// Don't report this exception
+					s_logger.debug("Modbus device not found at {}.", i);
+				}	
+			}
+		}
+		
+		s_logger.debug("...Done!");
 	}
 	
 	private synchronized void initializeMetrics() {
@@ -519,7 +530,7 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 			return;
 		}
 
-		Integer slaveAddress = Integer.parseInt(resources[1],16);
+		Integer slaveAddress = Integer.parseInt(resources[1]);
 		String model = searchModel(slaveAddress);
 		if (model.isEmpty()) {
 			s_logger.warn("No model found for command.");
@@ -543,8 +554,15 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 		
 		try {
 			if ("HR".equals(c.getType())) {
-				int[] data = {c.getCommandValue()};
-				writeMultipleRegister(slaveAddress.intValue(), c.getAddress().intValue(), data);
+				if (c.getCommandValue() == null) {
+					// If the value is null, search it in the request
+					Float value = (Float) reqPayload.getMetric("value");
+					int[] data = {Math.round((value - c.getOffset()) / c.getScale())};
+					writeMultipleRegister(slaveAddress.intValue(), c.getAddress().intValue(), data);
+				} else {
+					int[] data = {c.getCommandValue()};
+					writeMultipleRegister(slaveAddress.intValue(), c.getAddress().intValue(), data);
+				}
 				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
 			} else if ("C".equals(c.getType())) {
 				writeSingleCoil(slaveAddress.intValue(), c.getAddress().intValue(), c.getCommandValue() == 1 ? true : false);

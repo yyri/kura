@@ -144,10 +144,15 @@ public class ModbusConfigParser {
 				NodeList resources = asset.getChildNodes();
 				for (int j = 0; j < resources.getLength(); j++) {
 					Node resource = resources.item(j); // Holding register or coils
+					// Commands can be null!
 					if ("holdingRegisters".equals(resource.getNodeName())) {
-						commands = getCommands(((Element) resource).getElementsByTagName("commands").item(0), "HR");
+						if (((Element) resource).getElementsByTagName("commands").item(0) != null) {
+							commands = getCommands(((Element) resource).getElementsByTagName("commands").item(0), "HR");
+						}
 					} else if ("coils".equals(resource.getNodeName())) {
-						commands = getCommands(((Element) resource).getElementsByTagName("commands").item(0), "C");
+						if (((Element) resource).getElementsByTagName("commands").item(0) != null) {
+							commands = getCommands(((Element) resource).getElementsByTagName("commands").item(0), "C");
+						}
 					}
 				}
 			}
@@ -171,15 +176,20 @@ public class ModbusConfigParser {
 					Node registerNode = registerList.item(t);
 					if (registerNode.getNodeType() == Node.ELEMENT_NODE && "register".equals(registerNode.getNodeName())) {
 						Register r = createRegister((Element) registerNode);
-						modbusResources.addRegister(r);
+						// Add only enabled registers
+						if (!r.isDisabled())
+							modbusResources.addRegister(r);
 					}
 				}
-				if (modbusResourcesMap.get(registersElement.getElementsByTagName("pollGroup").item(0).getTextContent()) == null) {
-					ArrayList<ModbusResources> modbusResourcesList = new ArrayList<ModbusResources>();
-					modbusResourcesList.add(modbusResources);
-					modbusResourcesMap.put(registersElement.getElementsByTagName("pollGroup").item(0).getTextContent(), modbusResourcesList);
-				} else {
-					modbusResourcesMap.get(registersElement.getElementsByTagName("pollGroup").item(0).getTextContent()).add(modbusResources);
+				// Add only modbus configuration with registers
+				if (!modbusResources.getRegisters().isEmpty()) {
+					if (modbusResourcesMap.get(registersElement.getElementsByTagName("pollGroup").item(0).getTextContent()) == null) {
+						ArrayList<ModbusResources> modbusResourcesList = new ArrayList<ModbusResources>();
+						modbusResourcesList.add(modbusResources);
+						modbusResourcesMap.put(registersElement.getElementsByTagName("pollGroup").item(0).getTextContent(), modbusResourcesList);
+					} else {
+						modbusResourcesMap.get(registersElement.getElementsByTagName("pollGroup").item(0).getTextContent()).add(modbusResources);
+					}
 				}
 			}
 		}
@@ -191,7 +201,7 @@ public class ModbusConfigParser {
 		r.setAccess(register.getElementsByTagName("access").item(0).getTextContent());
 		r.setPublishGroup(register.getElementsByTagName("publishGroup").item(0).getTextContent());
 		r.setType(register.getElementsByTagName("type").item(0).getTextContent());
-		r.setDisabled(Boolean.getBoolean(register.getElementsByTagName("disabled").item(0).getTextContent()));
+		r.setDisabled("true".equals(register.getElementsByTagName("disabled").item(0).getTextContent()) ? true : false );
 		if ("int16".equals(r.getType())) {
 			r.setName(register.getElementsByTagName("name").item(0).getTextContent());
 			r.setScale(Float.parseFloat(register.getElementsByTagName("scale").item(0).getTextContent()));
@@ -250,7 +260,14 @@ public class ModbusConfigParser {
 						c.setType(type);
 						c.setAddress(Integer.parseInt(commandElement.getElementsByTagName("address").item(0).getTextContent(),16));
 						c.setCommandName(fieldElement.getElementsByTagName("name").item(0).getTextContent());
-						c.setCommandValue(Integer.parseInt(fieldElement.getElementsByTagName("value").item(0).getTextContent(),16));
+						if (fieldElement.getElementsByTagName("value").item(0).getTextContent().isEmpty()) {
+							// If the value is null, the command will set a analog register with a scale and offset
+							c.setCommandValue(null);
+							c.setScale(Float.parseFloat(fieldElement.getElementsByTagName("scale").item(0).getTextContent()));
+							c.setOffset(Float.parseFloat(fieldElement.getElementsByTagName("offset").item(0).getTextContent()));
+						} else {
+							c.setCommandValue(Integer.parseInt(fieldElement.getElementsByTagName("value").item(0).getTextContent(),16));
+						}
 						commands.put(c.getCommandName(),c);
 					}
 				}

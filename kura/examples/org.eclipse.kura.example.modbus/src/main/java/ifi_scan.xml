@@ -4,12 +4,62 @@
     <interval>60000</interval>
     <range>
         <min>1</min>
-        <max>255</max>
+        <max>20</max>
     </range>
 
+    <models>
+        <model>
+            <name>xw764k</name>
+            <registers>
+                <register>
+                    <address>0001</address>
+                    <value>5700</value>
+                </register>
+                <register>
+                    <address>0002</address>
+                    <value>BF2B</value>
+                </register>
+            </registers>
+        </model>
+         <model>
+            <name>xw60lr</name>
+            <registers>
+                <register>
+                    <address>0001</address>
+                    <value>5700</value>
+                </register>
+                <register>
+                    <address>0002</address>
+                    <value>0F33</value>
+                </register>
+            </registers>
+        </model>
+        <model>
+            <name>xw30ls</name>
+            <registers>
+                <register>
+                    <address>0001</address>
+                    <value>5700</value>
+                </register>
+                <register>
+                    <address>0002</address>
+                    <value>07B3</value>
+                </register>
+            </registers>
+        </model>
+    </models>
+    
     <assets>
         <asset>
-            <id>1</id>
+            <id>10</id>
+            <model>xw764k</model>
+        </asset>
+         <asset>
+            <id>11</id>
+            <model>xw764k</model>
+        </asset>
+        <asset>
+            <id>12</id>
             <model>xw764k</model>
         </asset>
     </assets>

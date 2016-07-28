@@ -6,6 +6,8 @@ public class Command {
 	private String type;
 	private String commandName;
 	private Integer commandValue;
+	private Float scale;
+	private Float offset;
 	
 	public Command() { 
 		this.address = 0;
@@ -36,6 +38,22 @@ public class Command {
 	
 	public void setCommandName(String commandName) {
 		this.commandName = commandName;
+	}
+
+	public Float getScale() {
+		return scale;
+	}
+
+	public void setScale(Float scale) {
+		this.scale = scale;
+	}
+
+	public Float getOffset() {
+		return offset;
+	}
+
+	public void setOffset(Float offset) {
+		this.offset = offset;
 	}
 
 	public Integer getCommandValue() {
