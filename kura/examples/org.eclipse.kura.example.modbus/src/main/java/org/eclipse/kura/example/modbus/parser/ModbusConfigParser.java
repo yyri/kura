@@ -127,7 +127,7 @@ public class ModbusConfigParser {
 	}
 	
 	public static Map<String,Command> getCommands(String model) {
-		Map<String,Command> commands = null;
+		Map<String,Command> commands = new HashMap<String,Command>();
 		Element configuration = doc.getDocumentElement();
 		configuration.normalize();
 		
@@ -147,11 +147,11 @@ public class ModbusConfigParser {
 					// Commands can be null!
 					if ("holdingRegisters".equals(resource.getNodeName())) {
 						if (((Element) resource).getElementsByTagName("commands").item(0) != null) {
-							commands = getCommands(((Element) resource).getElementsByTagName("commands").item(0), "HR");
+							commands.putAll(getCommands(((Element) resource).getElementsByTagName("commands").item(0), "HR"));
 						}
 					} else if ("coils".equals(resource.getNodeName())) {
 						if (((Element) resource).getElementsByTagName("commands").item(0) != null) {
-							commands = getCommands(((Element) resource).getElementsByTagName("commands").item(0), "C");
+							commands.putAll(getCommands(((Element) resource).getElementsByTagName("commands").item(0), "C"));
 						}
 					}
 				}
@@ -160,6 +160,42 @@ public class ModbusConfigParser {
 		}
 		
 		return commands;
+	}
+	
+	public static List<ModbusResources> getModbusParameters(String model) {
+		List<ModbusResources> parameters = null;
+		Element configuration = doc.getDocumentElement();
+		configuration.normalize();
+		
+		NodeList assets = doc.getElementsByTagName("assets").item(0).getChildNodes();
+		Element asset;
+		for (int i = 0; i < assets.getLength(); i++) {
+			Node node = assets.item(i);
+			if (node.getNodeType() == Node.ELEMENT_NODE) {
+				asset = (Element) node;
+				if (!model.equals(asset.getElementsByTagName("model").item(0).getTextContent())) {
+					continue;
+				}
+
+				NodeList resources = asset.getChildNodes();
+				for (int j = 0; j < resources.getLength(); j++) {
+					Node resource = resources.item(j); // Holding register or coils
+					// Commands can be null!
+					if ("holdingRegisters".equals(resource.getNodeName())) {
+						if (((Element) resource).getElementsByTagName("parameters").item(0) != null) {
+							parameters = getParameters(((Element) resource).getElementsByTagName("parameters").item(0), "HR");
+						}
+					} else if ("coils".equals(resource.getNodeName())) {
+						if (((Element) resource).getElementsByTagName("parameters").item(0) != null) {
+							parameters = getParameters(((Element) resource).getElementsByTagName("parameters").item(0), "C");
+						}
+					}
+				}
+			}
+		
+		}
+		
+		return parameters;
 	}
 	
 	private static void addModbusResources(NodeList registersList, HashMap<String, List<ModbusResources>> modbusResourcesMap, List<Integer> slaveAddresses, String type) {
@@ -275,5 +311,35 @@ public class ModbusConfigParser {
 		}
 		
 		return commands;
+	}
+	
+	private static List<ModbusResources> getParameters(Node parametersNode, String type) {
+		List<ModbusResources> modbusParameters = new ArrayList<ModbusResources>();
+		NodeList parametersList = parametersNode.getChildNodes();
+		for (int k = 0; k < parametersList.getLength(); k++) {
+			Node registers = parametersList.item(k);
+			if (registers.getNodeType() == Node.ELEMENT_NODE && "registers".equals(registers.getNodeName())) {
+				Element registersElement = (Element) registers;
+				ModbusResources modbusResources = new ModbusResources();
+				modbusResources.setRegisterAddress(registersElement.getElementsByTagName("address").item(0).getTextContent());
+				modbusResources.setType(type);
+				NodeList registerList = registers.getChildNodes();
+				for (int t = 0; t < registerList.getLength(); t++) {
+					Node registerNode = registerList.item(t);
+					if (registerNode.getNodeType() == Node.ELEMENT_NODE && "register".equals(registerNode.getNodeName())) {
+						Register r = createRegister((Element) registerNode);
+						// Add only enabled registers
+						if (!r.isDisabled())
+							modbusResources.addRegister(r);
+					}
+				}
+				// Add only modbus configuration with registers
+				if (!modbusResources.getRegisters().isEmpty()) {
+					modbusParameters.add(modbusResources);
+				}
+			}
+		}
+		
+		return modbusParameters;
 	}
 }

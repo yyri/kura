@@ -139,7 +139,7 @@
             cardinality="0"
             required="true"
             default=""
-            max="65535"
+            max="262144"
             description="Configuration parameters for the PLCs.&#x200b;&#x200b;&#x200b;&#x200b;&#x200b;"/>
          
     </OCD>

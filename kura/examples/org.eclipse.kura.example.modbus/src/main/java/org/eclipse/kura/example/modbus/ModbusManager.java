@@ -73,6 +73,8 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 	private Map<String,ModbusConfiguration> pollGroups;
 	private Map<String,PublishConfiguration> publishGroups;
 	private Map<String,Map<String,Command>> commands;
+	// Map<model,List<parameter>
+	private Map<String,List<ModbusResources>> parameters;
 	private List<Metric> metrics;
 	private List<Metric> oldMetrics;
 
@@ -246,7 +248,6 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 			if (pollGroups.get(entry.getKey()) != null) {
 				pollGroups.get(entry.getKey()).addRegisters(entry.getValue());
 			}
-			
 		}
 		
 		// Get Publish Groups
@@ -260,20 +261,27 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 			publishGroups.put(config.getName(), config);
 		}
 		
-		// Get Commands
+		// Get Commands and Parameters
 		if (commands == null) {
 			commands = new HashMap<String,Map<String,Command>>();
 		}
 		commands.clear();
+
+		if (parameters == null) {
+			parameters = new HashMap<String,List<ModbusResources>>();
+		}
+		parameters.clear();
 		
 		for (String model : devices.keySet()) {
 			commands.put(model, ModbusConfigParser.getCommands(model));
+//			parameters.put(model, ModbusConfigParser.getModbusParameters(model));
 		}
 		
 	}
 
 	private synchronized void publishMessage(PublishConfiguration configuration) {
 
+		// Valutare se usare una mappa di liste direttamente. Tabella sincronizzata con transaction e commit. Usare il db?
 		s_logger.debug("PublishMessage()");
 		Map<Integer,List<Metric>> deviceMetricList = new HashMap<Integer,List<Metric>>();
 		
@@ -449,10 +457,9 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 			// Use registers 1 and 2 for model detection for now!
 			for (int i = scannerConfig.getMinRange(); i < scannerConfig.getMaxRange(); i++) {
 				try {
-					int reg1 = protocolDevice.readHoldingRegisters(i, 1, 1)[0];
-					int reg2 = protocolDevice.readHoldingRegisters(i, 2, 1)[0];
+					int[] regs = readHoldingRegisters(i, 1, 2);
 					for (Entry<String,Map<Integer,Integer>> entry : scannerConfig.getModels().entrySet()) {
-						if (entry.getValue().get(1).equals(reg1) && entry.getValue().get(2).equals(reg2)) {
+						if (entry.getValue().get(1).equals(regs[0]) && entry.getValue().get(2).equals(regs[1])) {
 							s_logger.debug("Found device {} @ {}", entry.getKey(), i);
 							if (devices.get(entry.getKey()) == null) {
 								ArrayList<Integer> slaveAddresses = new ArrayList<Integer>();
@@ -473,6 +480,16 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 		}
 		
 		s_logger.debug("...Done!");
+	}
+	
+	private synchronized int[] readHoldingRegisters(int unitAddr, int dataAddress, int count) throws ModbusProtocolException {
+		// Add delay
+		try {
+			Thread.sleep(500);
+		} catch (InterruptedException e) {
+			s_logger.error("Error during waiting...", e);
+		}
+		return protocolDevice.readHoldingRegisters(unitAddr, dataAddress, count);
 	}
 	
 	private synchronized void initializeMetrics() {
@@ -545,37 +562,44 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 			return;
 		}
 		
-		Command c = availableCommands.get(resources[2]); 
-		if (c == null) {
-			s_logger.warn("Command {} not supported for model {}.", resources[2], model);
-			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_NOTFOUND);
-			return;			
-		}
-		
-		try {
-			if ("HR".equals(c.getType())) {
-				if (c.getCommandValue() == null) {
-					// If the value is null, search it in the request
-					Float value = (Float) reqPayload.getMetric("value");
-					int[] data = {Math.round((value - c.getOffset()) / c.getScale())};
-					writeMultipleRegister(slaveAddress.intValue(), c.getAddress().intValue(), data);
-				} else {
-					int[] data = {c.getCommandValue()};
-					writeMultipleRegister(slaveAddress.intValue(), c.getAddress().intValue(), data);
-				}
-				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
-			} else if ("C".equals(c.getType())) {
-				writeSingleCoil(slaveAddress.intValue(), c.getAddress().intValue(), c.getCommandValue() == 1 ? true : false);
-				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
-			} else {
-				s_logger.error("Bad request topic: {}", reqTopic.toString());
-				s_logger.error("Cannot find resource with name: {}", resources[0]);
+		if (resources[2].equals("getParameters")) {
+			// getParameters command is always available
+			getAndPublishParameters();
+		} else {
+			Command c = availableCommands.get(resources[2]); 
+			for (String c1 : availableCommands.keySet())
+				s_logger.debug("AAA " + c1);
+			if (c == null) {
+				s_logger.warn("Command {} not supported for model {}.", resources[2], model);
 				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_NOTFOUND);
-				return;				
+				return;			
 			}
-		} catch (ModbusProtocolException e) {
-			s_logger.error("Modbus write command failed.", e);
-			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_ERROR);
+			
+			try {
+				if ("HR".equals(c.getType())) {
+					if (c.getCommandValue() == null) {
+						// If the value is null, search it in the request
+						Float value = (Float) reqPayload.getMetric("value");
+						int[] data = {Math.round((value - c.getOffset()) / c.getScale())};
+						writeMultipleRegister(slaveAddress.intValue(), c.getAddress().intValue(), data);
+					} else {
+						int[] data = {c.getCommandValue()};
+						writeMultipleRegister(slaveAddress.intValue(), c.getAddress().intValue(), data);
+					}
+					respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
+				} else if ("C".equals(c.getType())) {
+					writeSingleCoil(slaveAddress.intValue(), c.getAddress().intValue(), c.getCommandValue() == 1 ? true : false);
+					respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
+				} else {
+					s_logger.error("Bad request topic: {}", reqTopic.toString());
+					s_logger.error("Cannot find resource with name: {}", resources[0]);
+					respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_NOTFOUND);
+					return;				
+				}
+			} catch (ModbusProtocolException e) {
+				s_logger.error("Modbus write command failed.", e);
+				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_ERROR);
+			}
 		}
 
 	}
@@ -596,4 +620,7 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 		protocolDevice.writeMultipleCoils(unitAddr, dataAddress, data);
 	}
 	
+	private void getAndPublishParameters() {
+		//TODO!
+	}
 }
