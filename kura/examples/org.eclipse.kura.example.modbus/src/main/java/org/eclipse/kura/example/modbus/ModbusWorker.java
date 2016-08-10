@@ -7,7 +7,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.eclipse.kura.example.modbus.register.Field;
-import org.eclipse.kura.example.modbus.register.ModbusResources;
+import org.eclipse.kura.example.modbus.register.ModbusHandler;
 import org.eclipse.kura.example.modbus.register.Option;
 import org.eclipse.kura.example.modbus.register.Register;
 import org.eclipse.kura.protocol.modbus.ModbusProtocolException;
@@ -18,7 +18,7 @@ public class ModbusWorker {
 
 	private static final Logger s_logger = LoggerFactory.getLogger(ModbusWorker.class);
 	
-	private List<ModbusResources> resources;
+	private List<PollResources> resources;
 	private ModbusRunner runner = new ModbusRunner();
 	private List<Metric> data;
 	
@@ -26,9 +26,9 @@ public class ModbusWorker {
 	private volatile boolean stopIt = false;
 	private KuraChangeListener listener;
 	
-	public ModbusWorker(ModbusConfiguration config, ScheduledExecutorService executor, KuraChangeListener listener) {
+	public ModbusWorker(PollConfiguration config, ScheduledExecutorService executor, KuraChangeListener listener) {
 
-		this.resources = config.getRegisters();
+		this.resources = config.getResources();
 		this.data = new ArrayList<Metric>();
 		this.listener = listener;
 
@@ -43,37 +43,6 @@ public class ModbusWorker {
 			handle.cancel(true);
 		}
 	}
-
-	private static synchronized Object readModbus(String type, Integer slaveAddress, Integer registerAddress, Integer count) throws ModbusProtocolException {
-		Object result = null;
-		try {
-			Thread.sleep(500);
-			if ("C".equals(type)) {
-				result = ModbusManager.protocolDevice.readCoils(slaveAddress, registerAddress, count);
-			} else if ("DI".equals(type)) {
-				result = ModbusManager.protocolDevice.readDiscreteInputs(slaveAddress, registerAddress, count);
-			} else if ("HR".equals(type)) {
-				result = ModbusManager.protocolDevice.readHoldingRegisters(slaveAddress, registerAddress, count);
-				// Force short convertion and back to recover sign
-				for (int i = 0; i < ((int[]) result).length; i++) {
-					short r = (short) ((int[]) result)[i];
-					((int[]) result)[i] = r;
-				}				
-			} else if ("IR".equals(type)) {
-				result = ModbusManager.protocolDevice.readInputRegisters(slaveAddress, registerAddress, count);
-				// Force short convertion and back to recover sign
-				for (int i = 0; i < ((int[]) result).length; i++) {
-					short r = (short) ((int[]) result)[i];
-					((int[]) result)[i] = r;
-				}	
-			} else {
-				result = null;
-			}
-		} catch (InterruptedException e) {
-			s_logger.error("Failed to wait for Modbus.", e);
-		}
-		return result;
-	}
 	
 	private class ModbusRunner implements Runnable {
 
@@ -84,12 +53,12 @@ public class ModbusWorker {
 				data.clear();
 				
 				try {
-					for (ModbusResources mr : resources) {
+					for (PollResources mr : resources) {
 						for (Integer slaveAddress : mr.getSlaveAddress()) {
 							if ("C".equals(mr.getType()) || "DI".equals(mr.getType())) {
-								getMetric((boolean[]) readModbus(mr.getType(), slaveAddress, Integer.parseInt(mr.getRegisterAddress(),16), mr.getRegisters().size()), mr, slaveAddress);
+								getMetric((boolean[]) ModbusHandler.readModbus(mr.getType(), slaveAddress, Integer.parseInt(mr.getRegisterAddress(),16), mr.getRegisters().size()), mr, slaveAddress);
 							} else if ("HR".equals(mr.getType()) || "IR".equals(mr.getType())) {
-								getMetric((int[]) readModbus(mr.getType(), slaveAddress, Integer.parseInt(mr.getRegisterAddress(),16), mr.getRegisters().size()), mr, slaveAddress);
+								getMetric((int[]) ModbusHandler.readModbus(mr.getType(), slaveAddress, Integer.parseInt(mr.getRegisterAddress(),16), mr.getRegisters().size()), mr, slaveAddress);
 							}
 						}
 					}
@@ -103,7 +72,7 @@ public class ModbusWorker {
 			}
 		}
 		
-		private void getMetric(int[] modbusData, ModbusResources resource, Integer slaveAddress) {
+		private void getMetric(int[] modbusData, PollResources resource, Integer slaveAddress) {
 			for (int d : modbusData)
 				s_logger.debug("Read {}", d);
 			List<Register> rList = resource.getRegisters();
@@ -130,7 +99,7 @@ public class ModbusWorker {
 			}
 		}
 
-		private void getMetric(boolean[] modbusData, ModbusResources resource, Integer slaveAddress) {
+		private void getMetric(boolean[] modbusData, PollResources resource, Integer slaveAddress) {
 			for (boolean d : modbusData)
 				s_logger.debug("Read {}", d);
 			List<Register> rList = resource.getRegisters();

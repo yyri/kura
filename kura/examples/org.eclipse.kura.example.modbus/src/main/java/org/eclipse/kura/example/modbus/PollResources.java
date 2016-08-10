@@ -1,16 +1,18 @@
-package org.eclipse.kura.example.modbus.register;
+package org.eclipse.kura.example.modbus;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class ModbusResources {
+import org.eclipse.kura.example.modbus.register.Register;
+
+public class PollResources {
 
 	private List<Integer> slaveAddresses;
 	private String registerAddress;
 	private String type;
 	private List<Register> registers;
 	
-	public ModbusResources() {
+	public PollResources() {
 		this.slaveAddresses = new ArrayList<Integer>();
 		this.registerAddress = "";
 		this.type = "";

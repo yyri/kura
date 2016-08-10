@@ -33,7 +33,10 @@ import org.eclipse.kura.example.modbus.parser.ModbusConfigParser;
 import org.eclipse.kura.example.modbus.parser.ScannerConfig;
 import org.eclipse.kura.example.modbus.parser.ScannerConfigParser;
 import org.eclipse.kura.example.modbus.register.Command;
-import org.eclipse.kura.example.modbus.register.ModbusResources;
+import org.eclipse.kura.example.modbus.register.Field;
+import org.eclipse.kura.example.modbus.register.ModbusHandler;
+import org.eclipse.kura.example.modbus.register.Option;
+import org.eclipse.kura.example.modbus.register.Register;
 import org.eclipse.kura.message.KuraPayload;
 import org.eclipse.kura.message.KuraRequestPayload;
 import org.eclipse.kura.message.KuraResponsePayload;
@@ -69,12 +72,14 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 
 	private boolean configured;
 
+	// Map<PLCModel,List<SlaveAdress>>
 	private Map<String,List<Integer>> devices;
-	private Map<String,ModbusConfiguration> pollGroups;
+	// Map<pollGroupName,PollConfiguration>
+	private Map<String,PollConfiguration> pollGroups;
+	// Map<publishGroupName,PublishConfiguration>
 	private Map<String,PublishConfiguration> publishGroups;
+	// Map<PLCModel,Map<CommandName,Command>>
 	private Map<String,Map<String,Command>> commands;
-	// Map<model,List<parameter>
-	private Map<String,List<ModbusResources>> parameters;
 	private List<Metric> metrics;
 	private List<Metric> oldMetrics;
 
@@ -190,8 +195,9 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 					s_logger.info("Configuration done!");
 					
 					// Start workers for polling
-					for(Entry<String, ModbusConfiguration> entry : pollGroups.entrySet()) {
-						if (workers.get(entry.getKey()) == null)
+					for(Entry<String, PollConfiguration> entry : pollGroups.entrySet()) {
+						// Check if the worker is on the workers list and the interval is not -1 (on demand registers)
+						if (workers.get(entry.getKey()) == null && entry.getValue().getInterval() != -1)
 							workers.put(entry.getKey(),new ModbusWorker(entry.getValue(), pollExecutor, kuraChangeListener));
 					}
 					
@@ -228,12 +234,12 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 		
 		// Get Poll Groups
 		if (pollGroups == null) {
-			pollGroups = new HashMap<String,ModbusConfiguration>();
+			pollGroups = new HashMap<String,PollConfiguration>();
 		}
 		pollGroups.clear();
 
-		List<ModbusConfiguration> modbusConfigurations = ModbusConfigParser.getPollGroups();
-		for (ModbusConfiguration config : modbusConfigurations) {
+		List<PollConfiguration> pollConfigurations = ModbusConfigParser.getPollGroups();
+		for (PollConfiguration config : pollConfigurations) {
 			pollGroups.put(config.getName(), config);
 		}
 		
@@ -242,11 +248,11 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 			return;
 		}
 		
-		// Get Modbus Configuration
-		Map<String, List<ModbusResources>> modbusResources = ModbusConfigParser.getModbusResources(devices);
-		for (Entry<String, List<ModbusResources>> entry : modbusResources.entrySet()) {
+		// Get Pool Resources
+		Map<String, List<PollResources>> pollResources = ModbusConfigParser.getPollResources(devices);
+		for (Entry<String, List<PollResources>> entry : pollResources.entrySet()) {
 			if (pollGroups.get(entry.getKey()) != null) {
-				pollGroups.get(entry.getKey()).addRegisters(entry.getValue());
+				pollGroups.get(entry.getKey()).addResources(entry.getValue());
 			}
 		}
 		
@@ -261,20 +267,14 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 			publishGroups.put(config.getName(), config);
 		}
 		
-		// Get Commands and Parameters
+		// Get Commands
 		if (commands == null) {
 			commands = new HashMap<String,Map<String,Command>>();
 		}
 		commands.clear();
-
-		if (parameters == null) {
-			parameters = new HashMap<String,List<ModbusResources>>();
-		}
-		parameters.clear();
 		
 		for (String model : devices.keySet()) {
 			commands.put(model, ModbusConfigParser.getCommands(model));
-//			parameters.put(model, ModbusConfigParser.getModbusParameters(model));
 		}
 		
 	}
@@ -555,17 +555,97 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 			return;
 		}
 		
-		Map<String,Command> availableCommands = commands.get(model);
-		if (availableCommands == null) {
-			s_logger.warn("No commands found for {}.", model);
-			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_ERROR);
-			return;
-		}
-		
-		if (resources[2].equals("getParameters")) {
-			// getParameters command is always available
-			getAndPublishParameters();
+		if ("bulkRead".equals(resources[2])) {
+			List<String> request = new ArrayList<String>();
+			Register register;
+			String registerAddress;
+			String registerType;
+			// Get the metric names from the payload
+			for (String str : reqPayload.metricNames())
+				s_logger.debug("AAA {}", str);
+			request.addAll(reqPayload.metricNames());
+			request.remove("requester.client.id");
+			request.remove("request.id");
+			for (int i = 0; i < request.size(); i++) {
+				register = null;
+				registerAddress = "";
+				registerType = "";
+				for (Entry<String,PollConfiguration> entry : pollGroups.entrySet()) {
+					for (PollResources pollResources : entry.getValue().getResources()) {
+						if (pollResources.getSlaveAddress().contains(slaveAddress)) {
+							for (Register reg : pollResources.getRegisters()) {
+								if (request.get(i).equals(reg.getName()) && reg.getAccess().contains("R")) {
+									// For analog inputs
+									registerAddress = pollResources.getRegisterAddress();
+									registerType = pollResources.getType();
+									register = reg;
+									break;
+								} else if (!reg.getFields().isEmpty()) {
+									// For digital input, output and alarms
+									for (Field field : reg.getFields()) {
+										if (request.get(i).equals(field.getName())) {
+											registerAddress = pollResources.getRegisterAddress();
+											registerType = pollResources.getType();
+											register = reg;										
+											break;
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				if (register == null) {
+					s_logger.warn("Metric {} not supported for model {}.", request.get(i), model);
+				}
+			
+				try {
+					if ("HR".equals(registerType)) {
+						int[] data = (int[]) ModbusHandler.readModbus(registerType, slaveAddress, Integer.parseInt(registerAddress,16) + register.getId(), 1);
+						if ("int16".equals(register.getType())) {
+							respPayload.addMetric(register.getName(), (float) (data[0] * register.getScale() + register.getOffset()));
+						} else if ("bitmap16".equals(register.getType())) {
+							for (Field f : register.getFields()) {
+								if (f.getName().equals(request.get(i)))
+									if (!f.getOptions().isEmpty()) {
+										Integer value = data[0] & Integer.parseInt(f.getMask(),16);
+										for (Option option : f.getOptions()) {
+											if (Integer.parseInt(option.getValue(),16) == value) {
+												respPayload.addMetric(f.getName(), option.getName());
+												break;
+											}
+										}
+									} else {
+										respPayload.addMetric(f.getName(), (data[0] & Integer.parseInt(f.getMask(),16)) == Integer.parseInt(f.getMask(),16) ? true : false);
+									}
+							}
+						}
+					} else if ("C".equals(registerType)) {
+						boolean[] data = (boolean[]) ModbusHandler.readModbus(registerType, slaveAddress, Integer.parseInt(registerAddress,16) + register.getId(), 1);
+						respPayload.addMetric(register.getName(), data[0]);
+					} else {
+						s_logger.error("Bad request topic: {}", reqTopic.toString());
+						s_logger.error("Cannot find resource with name: {}", request.get(i));
+						return;				
+					}
+				} catch (ModbusProtocolException e) {
+					s_logger.error("Modbus read command failed.", e);
+					respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_ERROR);
+				}
+			}
+			if (respPayload.metrics().isEmpty()) {
+				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_NOTFOUND);
+			} else {
+				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
+			}
 		} else {
+			Map<String,Command> availableCommands = commands.get(model);
+			if (availableCommands == null) {
+				s_logger.warn("No commands found for {}.", model);
+				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_ERROR);
+				return;
+			}
+
 			Command c = availableCommands.get(resources[2]); 
 			for (String c1 : availableCommands.keySet())
 				s_logger.debug("AAA " + c1);
@@ -574,21 +654,21 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_NOTFOUND);
 				return;			
 			}
-			
+
 			try {
 				if ("HR".equals(c.getType())) {
-					if (c.getCommandValue() == null) {
-						// If the value is null, search it in the request
-						Float value = (Float) reqPayload.getMetric("value");
-						int[] data = {Math.round((value - c.getOffset()) / c.getScale())};
-						writeMultipleRegister(slaveAddress.intValue(), c.getAddress().intValue(), data);
-					} else {
-						int[] data = {c.getCommandValue()};
-						writeMultipleRegister(slaveAddress.intValue(), c.getAddress().intValue(), data);
-					}
+					//				if (c.getCommandValue() == null) {
+					//					// If the value is null, search it in the request
+					//					Float value = (Float) reqPayload.getMetric("value");
+					//					int[] data = {Math.round((value - c.getOffset()) / c.getScale())};
+					//					writeMultipleRegister(slaveAddress.intValue(), c.getAddress().intValue(), data);
+					//				} else {
+					int[] data = {c.getCommandValue()};
+					ModbusHandler.writeMultipleRegister(slaveAddress.intValue(), c.getAddress().intValue(), data);
+					//				}
 					respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
 				} else if ("C".equals(c.getType())) {
-					writeSingleCoil(slaveAddress.intValue(), c.getAddress().intValue(), c.getCommandValue() == 1 ? true : false);
+					ModbusHandler.writeSingleCoil(slaveAddress.intValue(), c.getAddress().intValue(), c.getCommandValue() == 1 ? true : false);
 					respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
 				} else {
 					s_logger.error("Bad request topic: {}", reqTopic.toString());
@@ -604,23 +684,202 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 
 	}
 	
-	private synchronized void writeSingleRegister(int unitAddr, int dataAddress, int data) throws ModbusProtocolException {
-		protocolDevice.writeSingleRegister(unitAddr, dataAddress, data);
+	@Override
+	protected void doGet(CloudletTopic reqTopic, KuraRequestPayload reqPayload, KuraResponsePayload respPayload) throws KuraException {
+
+		s_logger.debug("GET received!");
+		
+		String[] resources = reqTopic.getResources();
+		
+		if (resources == null || resources.length != 3) {
+			s_logger.error("Bad request topic: {}", reqTopic.toString());
+			s_logger.error("Expected one resource but found {}",
+					resources != null ? resources.length : "none");
+			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_BAD_REQUEST);
+			return;
+		}
+
+		Integer slaveAddress = Integer.parseInt(resources[1]);
+		String model = searchModel(slaveAddress);
+		if (model.isEmpty()) {
+			s_logger.warn("No model found for command.");
+			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_ERROR);
+			return;
+		}
+		
+		String request = resources[2];
+		Register register = null;
+		String registerAddress = "";
+		String registerType = "";
+		for (Entry<String,PollConfiguration> entry : pollGroups.entrySet()) {
+			for (PollResources pollResources : entry.getValue().getResources()) {
+				if (pollResources.getSlaveAddress().contains(slaveAddress)) {
+					for (Register reg : pollResources.getRegisters()) {
+						if (request.equals(reg.getName()) && reg.getAccess().contains("R")) {
+							// For analog inputs
+							registerAddress = pollResources.getRegisterAddress();
+							registerType = pollResources.getType();
+							register = reg;
+							break;
+						} else if (!reg.getFields().isEmpty()) {
+							// For digital input, output and alarms
+							for (Field field : reg.getFields()) {
+								if (request.equals(field.getName())) {
+									registerAddress = pollResources.getRegisterAddress();
+									registerType = pollResources.getType();
+									register = reg;										
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		if (register == null) {
+			s_logger.warn("Metric {} not supported for model {}.", request, model);
+			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_NOTFOUND);
+			return;			
+		}
+		
+		try {
+			if ("HR".equals(registerType)) {
+				int[] data = (int[]) ModbusHandler.readModbus(registerType, slaveAddress, Integer.parseInt(registerAddress,16) + register.getId(), 1);
+				if ("int16".equals(register.getType())) {
+					respPayload.addMetric(register.getName(), (float) (data[0] * register.getScale() + register.getOffset()));
+				} else if ("bitmap16".equals(register.getType())) {
+					for (Field f : register.getFields()) {
+						if (f.getName().equals(request))
+							if (!f.getOptions().isEmpty()) {
+								Integer value = data[0] & Integer.parseInt(f.getMask(),16);
+								for (Option option : f.getOptions()) {
+									if (Integer.parseInt(option.getValue(),16) == value) {
+										respPayload.addMetric(f.getName(), option.getName());
+										break;
+									}
+								}
+							} else {
+								respPayload.addMetric(f.getName(), (data[0] & Integer.parseInt(f.getMask(),16)) == Integer.parseInt(f.getMask(),16) ? true : false);
+							}
+					}
+				}
+				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
+			} else if ("C".equals(registerType)) {
+				boolean[] data = (boolean[]) ModbusHandler.readModbus(registerType, slaveAddress, Integer.parseInt(registerAddress,16) + register.getId(), 1);
+				respPayload.addMetric(register.getName(), data[0]);
+				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
+			} else {
+				s_logger.error("Bad request topic: {}", reqTopic.toString());
+				s_logger.error("Cannot find resource with name: {}", request);
+				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_NOTFOUND);
+				return;				
+			}
+		} catch (ModbusProtocolException e) {
+			s_logger.error("Modbus read command failed.", e);
+			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_ERROR);
+		}
+
 	}
 	
-	private synchronized void writeMultipleRegister(int unitAddr, int dataAddress, int[] data) throws ModbusProtocolException {
-		protocolDevice.writeMultipleRegister(unitAddr, dataAddress, data);
-	}
-	
-	private synchronized void writeSingleCoil(int unitAddr, int dataAddress, boolean data) throws ModbusProtocolException {
-		protocolDevice.writeSingleCoil(unitAddr, dataAddress, data);
-	}
-	
-	private synchronized void writeMultipleCoils(int unitAddr, int dataAddress, boolean[] data) throws ModbusProtocolException {
-		protocolDevice.writeMultipleCoils(unitAddr, dataAddress, data);
-	}
-	
-	private void getAndPublishParameters() {
-		//TODO!
+	@Override
+	protected void doPost(CloudletTopic reqTopic, KuraRequestPayload reqPayload, KuraResponsePayload respPayload) throws KuraException {
+
+		s_logger.debug("POST received!");
+		
+		String[] resources = reqTopic.getResources();
+		
+		if (resources == null || resources.length != 3) {
+			s_logger.error("Bad request topic: {}", reqTopic.toString());
+			s_logger.error("Expected one resource but found {}",
+					resources != null ? resources.length : "none");
+			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_BAD_REQUEST);
+			return;
+		}
+
+		Integer slaveAddress = Integer.parseInt(resources[1]);
+		String model = searchModel(slaveAddress);
+		if (model.isEmpty()) {
+			s_logger.warn("No model found for command.");
+			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_ERROR);
+			return;
+		}
+		
+		String request = resources[2];
+		Register register = null;
+		String registerAddress = "";
+		String registerType = "";
+		for (Entry<String,PollConfiguration> entry : pollGroups.entrySet()) {
+			for (PollResources pollResources : entry.getValue().getResources()) {
+				if (pollResources.getSlaveAddress().contains(slaveAddress)) {
+					for (Register reg : pollResources.getRegisters()) {
+						if (request.equals(reg.getName()) && reg.getAccess().contains("R")) {
+							// For analog inputs
+							registerAddress = pollResources.getRegisterAddress();
+							registerType = pollResources.getType();
+							register = reg;
+							break;
+						} else if (!reg.getFields().isEmpty()) {
+							// For digital input, output and alarms
+							for (Field field : reg.getFields()) {
+								if (request.equals(field.getName())) {
+									registerAddress = pollResources.getRegisterAddress();
+									registerType = pollResources.getType();
+									register = reg;										
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		if (register == null) {
+			s_logger.warn("Metric {} not supported for model {}.", request, model);
+			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_NOTFOUND);
+			return;			
+		}
+		
+		try {
+			if ("HR".equals(registerType)) {
+				if ("int16".equals(register.getType())) {
+					Float value = (Float) reqPayload.getMetric("value");
+					int[] data = {Math.round((value - register.getOffset()) / register.getScale())};
+					ModbusHandler.writeMultipleRegister(slaveAddress.intValue(), Integer.parseInt(registerAddress,16) + register.getId(), data);
+				} else if ("bitmap16".equals(register.getType())) {
+					for (Field f : register.getFields()) {
+						if (f.getName().equals(request)) {
+							int[] data = (int[]) ModbusHandler.readModbus(registerType, slaveAddress, Integer.parseInt(registerAddress,16) + register.getId(), 1);
+							if (!f.getOptions().isEmpty()) {
+								Integer value = data[0] & Integer.parseInt(f.getMask(),16);
+								for (Option option : f.getOptions()) {
+									if (Integer.parseInt(option.getValue(),16) == value) {
+										respPayload.addMetric(f.getName(), option.getName());
+										break;
+									}
+								}
+							} else {
+								ModbusHandler.writeMultipleRegister(slaveAddress.intValue(), Integer.parseInt(registerAddress,16) + register.getId(), );
+								
+								
+								respPayload.addMetric(f.getName(), (data[0] & Integer.parseInt(f.getMask(),16)) == Integer.parseInt(f.getMask(),16) ? true : false);
+							}
+						}
+					}
+				}
+				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
+			} else if ("C".equals(registerType)) {
+				ModbusHandler.writeSingleCoil(slaveAddress.intValue(), Integer.parseInt(registerAddress,16) + register.getId(), (Integer) reqPayload.getMetric("value") == 1 ? true : false);
+				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
+			} else {
+				s_logger.error("Bad request topic: {}", reqTopic.toString());
+				s_logger.error("Cannot find resource with name: {}", request);
+				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_NOTFOUND);
+				return;				
+			}
+		} catch (ModbusProtocolException e) {
+			s_logger.error("Modbus read command failed.", e);
+			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_ERROR);
+		}
+
 	}
 }

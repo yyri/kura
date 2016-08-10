@@ -9,12 +9,13 @@ import java.util.Map;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
-import org.eclipse.kura.example.modbus.ModbusConfiguration;
 import org.eclipse.kura.example.modbus.ModbusManager;
+import org.eclipse.kura.example.modbus.PollConfiguration;
+import org.eclipse.kura.example.modbus.PollResources;
 import org.eclipse.kura.example.modbus.PublishConfiguration;
 import org.eclipse.kura.example.modbus.register.Command;
 import org.eclipse.kura.example.modbus.register.Field;
-import org.eclipse.kura.example.modbus.register.ModbusResources;
+import org.eclipse.kura.example.modbus.register.ModbusResource;
 import org.eclipse.kura.example.modbus.register.Option;
 import org.eclipse.kura.example.modbus.register.Register;
 import org.slf4j.Logger;
@@ -47,9 +48,9 @@ public class ModbusConfigParser {
 		}
 	}
 
-	public static List<ModbusConfiguration> getPollGroups() {
+	public static List<PollConfiguration> getPollGroups() {
 		
-		ArrayList<ModbusConfiguration> modbusConfigurations = new ArrayList<ModbusConfiguration>();
+		ArrayList<PollConfiguration> modbusConfigurations = new ArrayList<PollConfiguration>();
 		Element configuration = doc.getDocumentElement();
 		configuration.normalize();
 		
@@ -60,7 +61,7 @@ public class ModbusConfigParser {
 				Element pollGroup = (Element) node;
 				String name = pollGroup.getElementsByTagName("name").item(0).getTextContent();
 				String interval = pollGroup.getElementsByTagName("pollInterval").item(0).getTextContent();
-				ModbusConfiguration modbusConfiguration = new ModbusConfiguration(name, Integer.parseInt(interval));
+				PollConfiguration modbusConfiguration = new PollConfiguration(name, Integer.parseInt(interval));
 				modbusConfigurations.add(modbusConfiguration);
 			}
 		}
@@ -68,9 +69,9 @@ public class ModbusConfigParser {
 		return modbusConfigurations;
 	}
 	
-	public static Map<String,List<ModbusResources>> getModbusResources(Map<String, List<Integer>> devices) {
+	public static Map<String,List<PollResources>> getPollResources(Map<String, List<Integer>> devices) {
 		
-		HashMap<String,List<ModbusResources>> modbusResourcesMap = new HashMap<String,List<ModbusResources>>();
+		HashMap<String,List<PollResources>> modbusResourcesMap = new HashMap<String,List<PollResources>>();
 		Element configuration = doc.getDocumentElement();
 		configuration.normalize();
 		
@@ -162,48 +163,12 @@ public class ModbusConfigParser {
 		return commands;
 	}
 	
-	public static List<ModbusResources> getModbusParameters(String model) {
-		List<ModbusResources> parameters = null;
-		Element configuration = doc.getDocumentElement();
-		configuration.normalize();
-		
-		NodeList assets = doc.getElementsByTagName("assets").item(0).getChildNodes();
-		Element asset;
-		for (int i = 0; i < assets.getLength(); i++) {
-			Node node = assets.item(i);
-			if (node.getNodeType() == Node.ELEMENT_NODE) {
-				asset = (Element) node;
-				if (!model.equals(asset.getElementsByTagName("model").item(0).getTextContent())) {
-					continue;
-				}
-
-				NodeList resources = asset.getChildNodes();
-				for (int j = 0; j < resources.getLength(); j++) {
-					Node resource = resources.item(j); // Holding register or coils
-					// Commands can be null!
-					if ("holdingRegisters".equals(resource.getNodeName())) {
-						if (((Element) resource).getElementsByTagName("parameters").item(0) != null) {
-							parameters = getParameters(((Element) resource).getElementsByTagName("parameters").item(0), "HR");
-						}
-					} else if ("coils".equals(resource.getNodeName())) {
-						if (((Element) resource).getElementsByTagName("parameters").item(0) != null) {
-							parameters = getParameters(((Element) resource).getElementsByTagName("parameters").item(0), "C");
-						}
-					}
-				}
-			}
-		
-		}
-		
-		return parameters;
-	}
-	
-	private static void addModbusResources(NodeList registersList, HashMap<String, List<ModbusResources>> modbusResourcesMap, List<Integer> slaveAddresses, String type) {
+	private static void addModbusResources(NodeList registersList, HashMap<String, List<PollResources>> modbusResourcesMap, List<Integer> slaveAddresses, String type) {
 		for (int k = 0; k < registersList.getLength(); k++) {
 			Node registers = registersList.item(k);
 			if (registers.getNodeType() == Node.ELEMENT_NODE && "registers".equals(registers.getNodeName())) {
 				Element registersElement = (Element) registers;
-				ModbusResources modbusResources = new ModbusResources();
+				PollResources modbusResources = new PollResources();
 				modbusResources.setRegisterAddress(registersElement.getElementsByTagName("address").item(0).getTextContent());
 				modbusResources.setSlaveAddress(slaveAddresses);
 				modbusResources.setType(type);
@@ -220,7 +185,7 @@ public class ModbusConfigParser {
 				// Add only modbus configuration with registers
 				if (!modbusResources.getRegisters().isEmpty()) {
 					if (modbusResourcesMap.get(registersElement.getElementsByTagName("pollGroup").item(0).getTextContent()) == null) {
-						ArrayList<ModbusResources> modbusResourcesList = new ArrayList<ModbusResources>();
+						ArrayList<PollResources> modbusResourcesList = new ArrayList<PollResources>();
 						modbusResourcesList.add(modbusResources);
 						modbusResourcesMap.put(registersElement.getElementsByTagName("pollGroup").item(0).getTextContent(), modbusResourcesList);
 					} else {
@@ -299,8 +264,6 @@ public class ModbusConfigParser {
 						if (fieldElement.getElementsByTagName("value").item(0).getTextContent().isEmpty()) {
 							// If the value is null, the command will set a analog register with a scale and offset
 							c.setCommandValue(null);
-							c.setScale(Float.parseFloat(fieldElement.getElementsByTagName("scale").item(0).getTextContent()));
-							c.setOffset(Float.parseFloat(fieldElement.getElementsByTagName("offset").item(0).getTextContent()));
 						} else {
 							c.setCommandValue(Integer.parseInt(fieldElement.getElementsByTagName("value").item(0).getTextContent(),16));
 						}
@@ -313,33 +276,4 @@ public class ModbusConfigParser {
 		return commands;
 	}
 	
-	private static List<ModbusResources> getParameters(Node parametersNode, String type) {
-		List<ModbusResources> modbusParameters = new ArrayList<ModbusResources>();
-		NodeList parametersList = parametersNode.getChildNodes();
-		for (int k = 0; k < parametersList.getLength(); k++) {
-			Node registers = parametersList.item(k);
-			if (registers.getNodeType() == Node.ELEMENT_NODE && "registers".equals(registers.getNodeName())) {
-				Element registersElement = (Element) registers;
-				ModbusResources modbusResources = new ModbusResources();
-				modbusResources.setRegisterAddress(registersElement.getElementsByTagName("address").item(0).getTextContent());
-				modbusResources.setType(type);
-				NodeList registerList = registers.getChildNodes();
-				for (int t = 0; t < registerList.getLength(); t++) {
-					Node registerNode = registerList.item(t);
-					if (registerNode.getNodeType() == Node.ELEMENT_NODE && "register".equals(registerNode.getNodeName())) {
-						Register r = createRegister((Element) registerNode);
-						// Add only enabled registers
-						if (!r.isDisabled())
-							modbusResources.addRegister(r);
-					}
-				}
-				// Add only modbus configuration with registers
-				if (!modbusResources.getRegisters().isEmpty()) {
-					modbusParameters.add(modbusResources);
-				}
-			}
-		}
-		
-		return modbusParameters;
-	}
 }

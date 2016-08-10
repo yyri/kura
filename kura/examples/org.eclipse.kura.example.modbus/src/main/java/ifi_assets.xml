@@ -97,7 +97,7 @@
           <pollGroup>slowPoll</pollGroup>
           <register>
             <id>0</id>
-            <access>R</access>
+            <access>RW</access> R -> put it in poll/publish group; if W -> put it in commands; if RW -> both
             <publishGroup>dataGroup</publishGroup>
             <type>int16</type>
             <name>SetPoint</name>
@@ -598,6 +598,36 @@
             </fields>
           </register>
         </registers>
+        <registers>
+          <address>0300</address>
+          <pollGroup></pollGroup> if empty pollGroup -> poll on demand; add it to parameters
+          <register>
+            <id>0</id>
+            <access>RW</access>
+            <publishGroup></publishGroup> if empty publishGroup -> publish on demand
+            <type>int16</type>
+            <name>HY</name>
+            <disabled>false</disabled>
+            <scale>0.1</scale>
+            <offset>0</offset>
+            <units>C</units>
+            <min>0.1</min>
+            <max>25.5</max>
+          </register>
+          <register>
+            <id>1</id>
+            <access>RW</access>
+            <publishGroup></publishGroup>
+            <type>int16</type>
+            <name>LS</name>
+            <disabled>false</disabled>
+            <scale>0.1</scale>
+            <offset>0</offset>
+            <units>C</units>
+            <min>-50</min>
+            <max>100</max>
+          </register>
+        </registers>
         <!--Commands specification -->
         <commands>
           <command>
@@ -685,20 +715,6 @@
               <field>
                 <name>LightOFF</name>
                 <value>0080</value>
-              </field>
-            </fields>
-          </command>
-          <command>
-            <id>2</id>
-            <address>0364</address>
-            <access>W</access>
-            <disabled>false</disabled>
-            <fields>
-              <field>
-                <name>SetPoint</name>
-                <value></value>
-                <scale>0.1</scale>
-                <offset>0</offset>
               </field>
             </fields>
           </command>
