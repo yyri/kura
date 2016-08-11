@@ -20,7 +20,7 @@ public class ScannerConfigParser {
 	
 	private static final Logger s_logger = LoggerFactory.getLogger(ModbusManager.class);
 
-	public ScannerConfigParser() {
+	private ScannerConfigParser() {
 		// Empty constructor
 	}
 	
@@ -67,21 +67,6 @@ public class ScannerConfigParser {
 					config.getModels().put(model, modelRegister);
 				}
 			}
-			
-//			NodeList assetsList = doc.getElementsByTagName("assets");
-//			for (int i = 0; i < assetsList.getLength(); i++) {
-//	
-//				Node assets = assetsList.item(i);
-//				NodeList assetList = assets.getChildNodes();
-//				for (int j = 0; j < assetList.getLength(); j++) {
-//					Node asset = assetList.item(j);
-//					if (asset.getNodeType() == Node.ELEMENT_NODE) {
-//						Element assetElement = (Element) asset;
-//						config.putAsset(Integer.parseInt(assetElement.getElementsByTagName("id").item(0).getTextContent()),
-//								assetElement.getElementsByTagName("model").item(0).getTextContent());
-//					}
-//				}
-//			}
 			
 			Node assets = doc.getElementsByTagName("assets").item(0);
 			NodeList assetList = assets.getChildNodes();

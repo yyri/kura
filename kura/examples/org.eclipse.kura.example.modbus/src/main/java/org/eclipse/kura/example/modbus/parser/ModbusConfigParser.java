@@ -15,7 +15,6 @@ import org.eclipse.kura.example.modbus.PollResources;
 import org.eclipse.kura.example.modbus.PublishConfiguration;
 import org.eclipse.kura.example.modbus.register.Command;
 import org.eclipse.kura.example.modbus.register.Field;
-import org.eclipse.kura.example.modbus.register.ModbusResource;
 import org.eclipse.kura.example.modbus.register.Option;
 import org.eclipse.kura.example.modbus.register.Register;
 import org.slf4j.Logger;
@@ -32,7 +31,11 @@ public class ModbusConfigParser {
 	
 	private static Document doc;
 	
-	public ModbusConfigParser() {
+	private static final String COMMANDS   = "commands";
+	private static final String POLL_GROUP = "pollGroup";
+	private static final String VALUE      = "value";
+	
+	private ModbusConfigParser() {
 		// Empty constructor
 	}
 	
@@ -147,12 +150,12 @@ public class ModbusConfigParser {
 					Node resource = resources.item(j); // Holding register or coils
 					// Commands can be null!
 					if ("holdingRegisters".equals(resource.getNodeName())) {
-						if (((Element) resource).getElementsByTagName("commands").item(0) != null) {
-							commands.putAll(getCommands(((Element) resource).getElementsByTagName("commands").item(0), "HR"));
+						if (((Element) resource).getElementsByTagName(COMMANDS).item(0) != null) {
+							commands.putAll(getCommands(((Element) resource).getElementsByTagName(COMMANDS).item(0), "HR"));
 						}
 					} else if ("coils".equals(resource.getNodeName())) {
-						if (((Element) resource).getElementsByTagName("commands").item(0) != null) {
-							commands.putAll(getCommands(((Element) resource).getElementsByTagName("commands").item(0), "C"));
+						if (((Element) resource).getElementsByTagName(COMMANDS).item(0) != null) {
+							commands.putAll(getCommands(((Element) resource).getElementsByTagName(COMMANDS).item(0), "C"));
 						}
 					}
 				}
@@ -184,12 +187,12 @@ public class ModbusConfigParser {
 				}
 				// Add only modbus configuration with registers
 				if (!modbusResources.getRegisters().isEmpty()) {
-					if (modbusResourcesMap.get(registersElement.getElementsByTagName("pollGroup").item(0).getTextContent()) == null) {
+					if (modbusResourcesMap.get(registersElement.getElementsByTagName(POLL_GROUP).item(0).getTextContent()) == null) {
 						ArrayList<PollResources> modbusResourcesList = new ArrayList<PollResources>();
 						modbusResourcesList.add(modbusResources);
-						modbusResourcesMap.put(registersElement.getElementsByTagName("pollGroup").item(0).getTextContent(), modbusResourcesList);
+						modbusResourcesMap.put(registersElement.getElementsByTagName(POLL_GROUP).item(0).getTextContent(), modbusResourcesList);
 					} else {
-						modbusResourcesMap.get(registersElement.getElementsByTagName("pollGroup").item(0).getTextContent()).add(modbusResources);
+						modbusResourcesMap.get(registersElement.getElementsByTagName(POLL_GROUP).item(0).getTextContent()).add(modbusResources);
 					}
 				}
 			}
@@ -230,7 +233,7 @@ public class ModbusConfigParser {
 							if (optionNode.getNodeType() == Node.ELEMENT_NODE) {
 								optionElement = (Element) optionNode;
 								Option option = new Option(optionElement.getElementsByTagName("name").item(0).getTextContent(),
-										optionElement.getElementsByTagName("value").item(0).getTextContent());
+										optionElement.getElementsByTagName(VALUE).item(0).getTextContent());
 								field.addOption(option);
 							}
 						}
@@ -261,11 +264,11 @@ public class ModbusConfigParser {
 						c.setType(type);
 						c.setAddress(Integer.parseInt(commandElement.getElementsByTagName("address").item(0).getTextContent(),16));
 						c.setCommandName(fieldElement.getElementsByTagName("name").item(0).getTextContent());
-						if (fieldElement.getElementsByTagName("value").item(0).getTextContent().isEmpty()) {
+						if (fieldElement.getElementsByTagName(VALUE).item(0).getTextContent().isEmpty()) {
 							// If the value is null, the command will set a analog register with a scale and offset
 							c.setCommandValue(null);
 						} else {
-							c.setCommandValue(Integer.parseInt(fieldElement.getElementsByTagName("value").item(0).getTextContent(),16));
+							c.setCommandValue(Integer.parseInt(fieldElement.getElementsByTagName(VALUE).item(0).getTextContent(),16));
 						}
 						commands.put(c.getCommandName(),c);
 					}
