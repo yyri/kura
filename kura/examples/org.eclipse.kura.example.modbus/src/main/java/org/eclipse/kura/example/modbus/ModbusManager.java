@@ -580,7 +580,7 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 									registerType = pollResources.getType();
 									register = reg;
 									break;
-								} else if (!reg.getFields().isEmpty()) {
+								} else if (!reg.getFields().isEmpty() && reg.getAccess().contains("R")) {
 									// For digital input, output and alarms
 									for (Field field : reg.getFields()) {
 										if (request.get(i).equals(field.getName())) {
@@ -596,7 +596,7 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 					}
 				}
 				if (register == null) {
-					s_logger.warn("Metric {} not supported for model {}.", request.get(i), model);
+					s_logger.warn("Metric {} not supported for reading on model {}.", request.get(i), model);
 				}
 			
 				try {
@@ -650,7 +650,7 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 			for (String c1 : availableCommands.keySet())
 				s_logger.debug("AAA " + c1);
 			if (c == null) {
-				s_logger.warn("Command {} not supported for model {}.", resources[2], model);
+				s_logger.warn("Command {} not supported for writing on model {}.", resources[2], model);
 				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_NOTFOUND);
 				return;			
 			}
@@ -721,8 +721,8 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 							registerType = pollResources.getType();
 							register = reg;
 							break;
-						} else if (!reg.getFields().isEmpty()) {
-							// For digital input, output and alarms
+						} else if (!reg.getFields().isEmpty() && reg.getAccess().contains("R")) {
+							// For digital input, output, alarms and parameters
 							for (Field field : reg.getFields()) {
 								if (request.equals(field.getName())) {
 									registerAddress = pollResources.getRegisterAddress();
@@ -737,7 +737,7 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 			}
 		}
 		if (register == null) {
-			s_logger.warn("Metric {} not supported for model {}.", request, model);
+			s_logger.warn("Metric {} not supported reading for model {}.", request, model);
 			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_NOTFOUND);
 			return;			
 		}
@@ -818,7 +818,7 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 							registerType = pollResources.getType();
 							register = reg;
 							break;
-						} else if (!reg.getFields().isEmpty()) {
+						} else if (!reg.getFields().isEmpty() && reg.getAccess().contains("R")) {
 							// For digital input, output and alarms
 							for (Field field : reg.getFields()) {
 								if (request.equals(field.getName())) {
@@ -834,7 +834,7 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 			}
 		}
 		if (register == null) {
-			s_logger.warn("Metric {} not supported for model {}.", request, model);
+			s_logger.warn("Metric {} not supported for writing on model {}.", request, model);
 			respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_NOTFOUND);
 			return;			
 		}
@@ -849,26 +849,25 @@ public class ModbusManager extends Cloudlet implements ConfigurableComponent, Ku
 					for (Field f : register.getFields()) {
 						if (f.getName().equals(request)) {
 							int[] data = (int[]) ModbusHandler.readModbus(registerType, slaveAddress, Integer.parseInt(registerAddress,16) + register.getId(), 1);
+							String value = (String) reqPayload.getMetric("value");
 							if (!f.getOptions().isEmpty()) {
-								Integer value = data[0] & Integer.parseInt(f.getMask(),16);
 								for (Option option : f.getOptions()) {
-									if (Integer.parseInt(option.getValue(),16) == value) {
-										respPayload.addMetric(f.getName(), option.getName());
+									if (option.getName().equals(value)) {
+										int[] result = {(data[0] & (~Integer.parseInt(f.getMask(),16))) | Integer.parseInt(option.getValue(),16)};
+										ModbusHandler.writeMultipleRegister(slaveAddress.intValue(), Integer.parseInt(registerAddress,16) + register.getId(), result);
 										break;
 									}
 								}
 							} else {
-								ModbusHandler.writeMultipleRegister(slaveAddress.intValue(), Integer.parseInt(registerAddress,16) + register.getId(), );
-								
-								
-								respPayload.addMetric(f.getName(), (data[0] & Integer.parseInt(f.getMask(),16)) == Integer.parseInt(f.getMask(),16) ? true : false);
+								int[] result = {(data[0] & (~Integer.parseInt(f.getMask(),16))) | Integer.parseInt(value,16)};
+								ModbusHandler.writeMultipleRegister(slaveAddress.intValue(), Integer.parseInt(registerAddress,16) + register.getId(), result);
 							}
 						}
 					}
 				}
 				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
 			} else if ("C".equals(registerType)) {
-				ModbusHandler.writeSingleCoil(slaveAddress.intValue(), Integer.parseInt(registerAddress,16) + register.getId(), (Integer) reqPayload.getMetric("value") == 1 ? true : false);
+				ModbusHandler.writeSingleCoil(slaveAddress.intValue(), Integer.parseInt(registerAddress,16) + register.getId(), ((String) reqPayload.getMetric("value")).equals("1") ? true : false);
 				respPayload.setResponseCode(KuraResponsePayload.RESPONSE_CODE_OK);
 			} else {
 				s_logger.error("Bad request topic: {}", reqTopic.toString());

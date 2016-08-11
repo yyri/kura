@@ -25,5 +25,5 @@
     		  name="ModbusProtocolDeviceService" 
     		  policy="static" 
     		  unbind="unsetModbusProtocolDeviceService"/>
-   <reference bind="setCloudService" cardinality="1..1" interface="org.eclipse.kura.cloud.CloudService" name="CloudService" policy="static" unbind="(kura.service.pid=org.eclipse.kura.cloud.CloudService)unsetCloudService"/>
+   <reference bind="setCloudService" cardinality="1..1" interface="org.eclipse.kura.cloud.CloudService" name="CloudService" policy="static" target="(kura.service.pid=org.eclipse.kura.cloud.CloudService)" unbind="unsetCloudService"/>
 </scr:component>
