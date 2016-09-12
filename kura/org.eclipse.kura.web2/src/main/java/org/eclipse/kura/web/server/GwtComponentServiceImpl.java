@@ -72,11 +72,15 @@ public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements
             for (ComponentConfiguration config : configs) {
 
                 // ignore items we want to hide
+                //TODO: the check for cloud services should be improved
                 if (config.getPid().endsWith("SystemPropertiesService") ||
                         config.getPid().endsWith("NetworkAdminService") ||
                         config.getPid().endsWith("NetworkConfigurationService") ||
                         config.getPid().endsWith("SslManagerService") ||
-                        config.getPid().endsWith("FirewallConfigurationService")) {
+                        config.getPid().endsWith("FirewallConfigurationService") ||
+                        config.getPid().contains("DataService") ||
+                        config.getPid().contains("CloudService") ||
+                        config.getPid().contains("MqttDataTransport")) {  
                     continue;
                 }
 

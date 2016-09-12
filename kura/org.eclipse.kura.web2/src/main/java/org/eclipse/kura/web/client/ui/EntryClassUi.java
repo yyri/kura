@@ -18,6 +18,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.eclipse.kura.web.client.messages.Messages;
+import org.eclipse.kura.web.client.ui.Connections.CloudServicesUi;
 import org.eclipse.kura.web.client.ui.Device.DevicePanelUi;
 import org.eclipse.kura.web.client.ui.Firewall.FirewallPanelUi;
 import org.eclipse.kura.web.client.ui.Network.NetworkPanelUi;
@@ -91,7 +92,7 @@ public class EntryClassUi extends Composite {
 	private final SettingsPanelUi settingsBinder = GWT.create(SettingsPanelUi.class);
 	private final FirewallPanelUi firewallBinder = GWT.create(FirewallPanelUi.class);
 	private final NetworkPanelUi networkBinder   = GWT.create(NetworkPanelUi.class);
-	//private final WiresPanelUi   wiresBinder     = GWT.create(WiresPanelUi.class);
+	private final CloudServicesUi cloudServicesBinder = GWT.create(CloudServicesUi.class);
 
 	private final GwtPackageServiceAsync gwtPackageService = GWT.create(GwtPackageService.class);
 	private final GwtComponentServiceAsync gwtComponentService = GWT.create(GwtComponentService.class);
@@ -111,6 +112,7 @@ public class EntryClassUi extends Composite {
 	private boolean networkDirty;
 	private boolean firewallDirty;
 	private boolean settingsDirty;
+	private boolean cloudServicesDirty;
 
 
 	@UiField
@@ -126,7 +128,17 @@ public class EntryClassUi extends Composite {
 	@UiField
 	TabListItem status;
 	@UiField
-	AnchorListItem device, network, firewall, packages, settings;
+	AnchorListItem device;
+	@UiField
+    AnchorListItem network;
+	@UiField
+    AnchorListItem firewall;
+	@UiField
+    AnchorListItem packages;
+	@UiField
+    AnchorListItem settings;
+	@UiField
+    AnchorListItem cloudServices;
 	@UiField
 	ScrollPanel servicesPanel;
 	@UiField
@@ -332,6 +344,28 @@ public class EntryClassUi extends Composite {
 				renderDirtyConfigModal(b);
 			}
 		});
+		
+		// Cloud services Panel
+        cloudServices.addClickHandler(new ClickHandler() {
+            @Override
+            public void onClick(ClickEvent event) {
+                Button b = new Button(MSGS.yesButton(), new ClickHandler() {
+                    @Override
+                    public void onClick(ClickEvent event) {
+                        forceTabsCleaning();
+                        if (modal != null ) {
+                            modal.hide();
+                        }
+                        contentPanel.setVisible(true);
+                        contentPanelHeader.setText(MSGS.cloudServices());
+                        contentPanelBody.clear();
+                        contentPanelBody.add(cloudServicesBinder);
+                        cloudServicesBinder.refresh();
+                    }
+                });
+                renderDirtyConfigModal(b);
+            }
+        });
 	}
 
 	public void initServicesTree() {
@@ -426,11 +460,17 @@ public class EntryClassUi extends Composite {
 		if (settings.isVisible()) {
 			settingsDirty= settingsBinder.isDirty(); 
 		}
+		
+		if (cloudServices.isVisible()) {
+		    cloudServicesDirty= cloudServicesBinder.isDirty(); 
+        }
 
 		if (	(servicesUi!=null && servicesUi.isDirty()) || 
 				networkDirty  || 
 				firewallDirty || 
-				settingsDirty ) {
+				settingsDirty ||
+				settingsDirty ||
+				cloudServicesDirty) {
 			modal = new Modal();
 
 			ModalHeader header = new ModalHeader();
