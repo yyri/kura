@@ -15,6 +15,7 @@ import java.util.List;
 
 import org.eclipse.kura.web.shared.GwtKuraException;
 import org.eclipse.kura.web.shared.model.GwtCloudConnectionEntry;
+import org.eclipse.kura.web.shared.model.GwtGroupedNVPair;
 
 import com.google.gwt.user.client.rpc.RemoteService;
 import com.google.gwt.user.client.rpc.RemoteServiceRelativePath;
@@ -23,5 +24,7 @@ import com.google.gwt.user.client.rpc.RemoteServiceRelativePath;
 public interface GwtCloudService extends RemoteService
 {
 	public List<GwtCloudConnectionEntry> findCloudServices() throws GwtKuraException;
+	
+	public List<GwtGroupedNVPair> findCloudServiceFactories() throws GwtKuraException;
 
 }

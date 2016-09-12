@@ -18,9 +18,11 @@ import java.util.Collection;
 import java.util.List;
 
 import org.eclipse.kura.cloud.CloudService;
+import org.eclipse.kura.cloud.factory.CloudServiceFactory;
 import org.eclipse.kura.web.server.util.ServiceLocator;
 import org.eclipse.kura.web.shared.GwtKuraException;
 import org.eclipse.kura.web.shared.model.GwtCloudConnectionEntry;
+import org.eclipse.kura.web.shared.model.GwtGroupedNVPair;
 import org.eclipse.kura.web.shared.service.GwtCloudService;
 import org.osgi.framework.ServiceReference;
 import org.slf4j.Logger;
@@ -48,6 +50,20 @@ public class GwtCloudServiceImpl extends OsgiRemoteServiceServlet implements Gwt
             cloudConnectionEntry.setCloudServicePid(cloudServicePid);
             pairs.add(cloudConnectionEntry);
             ServiceLocator.getInstance().ungetService(cloudServiceReference);
+        }
+        return pairs;
+    }
+    
+    @Override
+    public List<GwtGroupedNVPair> findCloudServiceFactories() throws GwtKuraException {
+        List<GwtGroupedNVPair> pairs = new ArrayList<GwtGroupedNVPair>();
+        Collection<ServiceReference<CloudServiceFactory>> cloudServiceFactoryReferences = ServiceLocator.getInstance().getServiceReferences(CloudServiceFactory.class, null);
+        
+        for (ServiceReference<CloudServiceFactory> cloudServiceFactoryReference : cloudServiceFactoryReferences) {
+            CloudServiceFactory cloudServiceFactory= ServiceLocator.getInstance().getService(cloudServiceFactoryReference);
+            pairs.add(new GwtGroupedNVPair("cloudFactories", "factoryPid", cloudServiceFactory.getFactoryPid()));
+                    
+            ServiceLocator.getInstance().ungetService(cloudServiceFactoryReference);
         }
         return pairs;
     }
