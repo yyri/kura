@@ -1,3 +1,16 @@
+/*******************************************************************************
+ * Copyright (c) 2011, 2016 Eurotech and others
+ *
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *     Eurotech
+ *     Red Hat - Fixes and cleanups
+ *          - Allow the use of text boxed and text areas
+ *******************************************************************************/
 package org.eclipse.kura.web.client.ui;
 
 import java.util.ArrayList;
@@ -300,7 +313,7 @@ public abstract class AbstractServicesUi extends Composite {
         final Input input = new Input();
         input.setType(InputType.PASSWORD);
         if (param.getValue() != null) {
-            input.setText((String) param.getValue());
+            input.setText(param.getValue());
         }
         else {
             input.setText("");
@@ -339,7 +352,6 @@ public abstract class AbstractServicesUi extends Composite {
         });
 
         formGroup.add(input);
-
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -433,11 +445,11 @@ public abstract class AbstractServicesUi extends Composite {
         while (it.hasNext()) {
             current = it.next();
             listBox.addItem(current);
-            if (param.getDefault() != null && oMap.get(current).equals((String) param.getDefault())) {
+            if (param.getDefault() != null && oMap.get(current).equals(param.getDefault())) {
                 listBox.setSelectedIndex(i);
             }
 
-            if (param.getValue() != null && oMap.get(current).equals((String) param.getValue())) {
+            if (param.getValue() != null && oMap.get(current).equals(param.getValue())) {
                 listBox.setSelectedIndex(i);
             }
             i++;
@@ -499,11 +511,11 @@ public abstract class AbstractServicesUi extends Composite {
                     errorLogger.log(Level.SEVERE, "Configuration max value error! Applying UI defaults...");
                 }
 
-                if ((String.valueOf(box.getText().trim()).length()) < configMinValue) {
+                if (String.valueOf(box.getText().trim()).length() < configMinValue) {
                     valid.put(param.getName(), false);
                     result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MIN_VALUE, configMinValue)));
                 }
-                if ((String.valueOf(box.getText().trim()).length()) > configMaxValue) {
+                if (String.valueOf(box.getText().trim()).length() > configMaxValue) {
                     valid.put(param.getName(), false);
                     result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MAX_VALUE, configMaxValue)));
                 }
@@ -619,7 +631,7 @@ public abstract class AbstractServicesUi extends Composite {
                 }
             }
         }
-        if (!multiFieldValues.isEmpty()) {
+        if (!multiFieldValues.isEmpty() && param != null) {
             param.setValues(multiFieldValues.toArray(new String[] {}));
         }
     }

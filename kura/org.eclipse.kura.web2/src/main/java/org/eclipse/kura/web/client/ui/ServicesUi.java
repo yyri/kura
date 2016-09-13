@@ -8,8 +8,6 @@
  *
  * Contributors:
  *     Eurotech
- *     Red Hat - Fixes and cleanups
- *          - Allow the use of text boxed and text areas
  *******************************************************************************/
 /*
  * Render the Content in the Main Panel corressponding to Service (GwtBSConfigComponent) selected in the Services Panel
@@ -122,6 +120,7 @@ public class ServicesUi extends AbstractServicesUi {
         reset.setEnabled(false);
     }
 
+    @Override
     public void setDirty(boolean flag) {
         dirty = flag;
         if (dirty && initialized) {
@@ -130,10 +129,12 @@ public class ServicesUi extends AbstractServicesUi {
         }
     }
 
+    @Override
     public boolean isDirty() {
         return dirty;
     }
 
+    @Override
     public void reset() {
         if (isDirty()) {
             // Modal
@@ -182,6 +183,7 @@ public class ServicesUi extends AbstractServicesUi {
     // Password, etc.). See latest org.eclipse.kura.web code.
     // Iterates through all GwtConfigParameter in the selected
     // GwtConfigComponent
+    @Override
     public void renderForm() {
         fields.clear();
         for (GwtConfigParameter param : m_configurableComponent.getParameters()) {
@@ -195,35 +197,34 @@ public class ServicesUi extends AbstractServicesUi {
         initialized = true;
     }
     
+    @Override
     protected void renderTextField(final GwtConfigParameter param, boolean isFirstInstance, final FormGroup formGroup) {
-
         super.renderTextField(param, isFirstInstance, formGroup);
-
         fields.add(formGroup);
     }
     
+    @Override
     protected void renderPasswordField(final GwtConfigParameter param, boolean isFirstInstance, FormGroup formGroup) {
         super.renderPasswordField(param, isFirstInstance, formGroup);
         fields.add(formGroup);
-
     }
     
+    @Override
     protected void renderBooleanField(final GwtConfigParameter param, boolean isFirstInstance, FormGroup formGroup) {
         super.renderBooleanField(param, isFirstInstance, formGroup);
-
         fields.add(formGroup);
     }
     
+    @Override
     protected void renderChoiceField(final GwtConfigParameter param, boolean isFirstInstance, FormGroup formGroup) {
         super.renderChoiceField(param, isFirstInstance, formGroup);
-
         fields.add(formGroup);
     }
 
+    
     //
     // Private methods
     //
-    
     private void setOriginalValues(GwtConfigComponent component) {
         for (GwtConfigParameter parameter : component.getParameters()) {
             parameter.setValue(parameter.getValue());
