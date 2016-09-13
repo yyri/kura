@@ -21,11 +21,18 @@ import org.eclipse.kura.web.client.messages.Messages;
 import org.eclipse.kura.web.client.ui.EntryClassUi;
 import org.eclipse.kura.web.client.util.FailureHandler;
 import org.eclipse.kura.web.shared.model.GwtCloudConnectionEntry;
+import org.eclipse.kura.web.shared.model.GwtFirewallOpenPortEntry;
+import org.eclipse.kura.web.shared.model.GwtGroupedNVPair;
+import org.eclipse.kura.web.shared.model.GwtXSRFToken;
 import org.eclipse.kura.web.shared.service.GwtCloudService;
 import org.eclipse.kura.web.shared.service.GwtCloudServiceAsync;
+import org.eclipse.kura.web.shared.service.GwtSecurityTokenService;
+import org.eclipse.kura.web.shared.service.GwtSecurityTokenServiceAsync;
 import org.gwtbootstrap3.client.ui.Button;
+import org.gwtbootstrap3.client.ui.ListBox;
 import org.gwtbootstrap3.client.ui.Modal;
 import org.gwtbootstrap3.client.ui.PanelBody;
+import org.gwtbootstrap3.client.ui.TextBox;
 import org.gwtbootstrap3.client.ui.Well;
 import org.gwtbootstrap3.client.ui.gwt.CellTable;
 
@@ -49,7 +56,8 @@ public class CloudServicesUi extends Composite {
 
     private final SingleSelectionModel<GwtCloudConnectionEntry> selectionModel  = new SingleSelectionModel<GwtCloudConnectionEntry>();
     private final GwtCloudServiceAsync                          gwtCloudService = GWT.create(GwtCloudService.class);
-
+    private final GwtSecurityTokenServiceAsync gwtXSRFService = GWT.create(GwtSecurityTokenService.class);
+    
     private ListDataProvider<GwtCloudConnectionEntry> cloudServicesDataProvider = new ListDataProvider<GwtCloudConnectionEntry>();
 
     interface CloudServicesUiUiBinder extends UiBinder<Widget, CloudServicesUi> {}
@@ -72,9 +80,18 @@ public class CloudServicesUi extends Composite {
     @UiField
     Button    cancel;
     @UiField
+    Button    btnCreateComp;
+    @UiField
     PanelBody connectPanel;
     @UiField
     Modal     connectModal;
+    @UiField
+    Modal     newConnectionModal;
+    @UiField
+    ListBox   cloudFactoriesPids;
+    @UiField
+    TextBox   cloudServicePid;
+    
 
     @UiField
     CellTable<GwtCloudConnectionEntry> connectionsGrid    = new CellTable<GwtCloudConnectionEntry>();
@@ -93,6 +110,13 @@ public class CloudServicesUi extends Composite {
         cancel.setText(MSG.cancelButton());
         connectionsGrid.setSelectionModel(selectionModel);
 
+        newConnection.addClickHandler(new ClickHandler() {
+            @Override
+            public void onClick(ClickEvent event) {
+                showNewConnectionModal();
+            }
+        });
+        
         statusConnect.addClickHandler(new ClickHandler() {
             @Override
             public void onClick(ClickEvent event) {
@@ -111,6 +135,13 @@ public class CloudServicesUi extends Composite {
             @Override
             public void onClick(ClickEvent event) {
                 hideConnectModal();
+            }
+        });
+        
+        btnCreateComp.addClickHandler(new ClickHandler() {
+            @Override
+            public void onClick(ClickEvent event) {
+                createComponent();
             }
         });
 
@@ -162,9 +193,33 @@ public class CloudServicesUi extends Composite {
         }
     }
 
+    
     //
     // Private methods
     //
+    private void showNewConnectionModal() {
+        EntryClassUi.showWaitModal();
+        cloudFactoriesPids.clear();
+
+        gwtCloudService.findCloudServiceFactories(new AsyncCallback<List<GwtGroupedNVPair>>() {
+            @Override
+            public void onFailure(Throwable caught) {
+                EntryClassUi.hideWaitModal();
+                FailureHandler.handle(caught, gwtCloudService.getClass().getSimpleName());
+            }
+
+            @Override
+            public void onSuccess(List<GwtGroupedNVPair> result) {
+                for (GwtGroupedNVPair pair : result) {
+                    cloudFactoriesPids.addItem(pair.getValue());
+                }
+                EntryClassUi.hideWaitModal();
+            }
+        });
+        
+        newConnectionModal.show();
+    }
+    
     private void showConnectModal() {
         connectModal.show();
     }
@@ -215,6 +270,38 @@ public class CloudServicesUi extends Composite {
         connectionsGrid.addColumn(col3, "Cloud Service Pid");
 
         cloudServicesDataProvider.addDataDisplay(connectionsGrid);
+    }
+    
+    private void createComponent() {
+        final String factoryPid= cloudFactoriesPids.getSelectedValue();
+        final String newCloudServicePid = cloudServicePid.getValue();
+        
+        gwtXSRFService.generateSecurityToken(new AsyncCallback<GwtXSRFToken> () {
+            @Override
+            public void onFailure(Throwable ex) {
+                EntryClassUi.hideWaitModal();
+                FailureHandler.handle(ex);
+            }
+
+            @Override
+            public void onSuccess(GwtXSRFToken token) {
+                gwtCloudService.createCloudServiceFromFactory(token, factoryPid, newCloudServicePid, new AsyncCallback<Void>() {
+                    @Override
+                    public void onFailure(Throwable caught) {
+                        EntryClassUi.hideWaitModal();
+                        FailureHandler.handle(caught, gwtCloudService.getClass().getSimpleName());
+                    }
+
+                    @Override
+                    public void onSuccess(Void result) {
+                        newConnectionModal.hide();
+                        EntryClassUi.hideWaitModal();
+                    }
+                });
+            }
+
+        });
+        
     }
 
 }

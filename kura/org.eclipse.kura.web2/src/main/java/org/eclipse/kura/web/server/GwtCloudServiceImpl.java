@@ -8,8 +8,6 @@
  *
  * Contributors:
  *     Eurotech
- *     Jens Reimann <jreimann@redhat.com> - Fix logging calls
- *         - Fix possible NPE
  *******************************************************************************/
 package org.eclipse.kura.web.server;
 
@@ -17,12 +15,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import org.eclipse.kura.KuraException;
 import org.eclipse.kura.cloud.CloudService;
 import org.eclipse.kura.cloud.factory.CloudServiceFactory;
 import org.eclipse.kura.web.server.util.ServiceLocator;
+import org.eclipse.kura.web.shared.GwtKuraErrorCode;
 import org.eclipse.kura.web.shared.GwtKuraException;
 import org.eclipse.kura.web.shared.model.GwtCloudConnectionEntry;
 import org.eclipse.kura.web.shared.model.GwtGroupedNVPair;
+import org.eclipse.kura.web.shared.model.GwtXSRFToken;
 import org.eclipse.kura.web.shared.service.GwtCloudService;
 import org.osgi.framework.ServiceReference;
 import org.slf4j.Logger;
@@ -67,5 +68,24 @@ public class GwtCloudServiceImpl extends OsgiRemoteServiceServlet implements Gwt
         }
         return pairs;
     }
-
+    
+    @Override
+    public void createCloudServiceFromFactory(GwtXSRFToken xsrfToken, String factoryPid, String cloudServicePid) throws GwtKuraException {
+        checkXSRFToken(xsrfToken);
+        Collection<ServiceReference<CloudServiceFactory>> cloudServiceFactoryReferences = ServiceLocator.getInstance().getServiceReferences(CloudServiceFactory.class, null);
+        
+        for (ServiceReference<CloudServiceFactory> cloudServiceFactoryReference : cloudServiceFactoryReferences) {
+            CloudServiceFactory cloudServiceFactory= ServiceLocator.getInstance().getService(cloudServiceFactoryReference);
+            try {
+                if (!cloudServiceFactory.getFactoryPid().equals(factoryPid)) {
+                    continue;
+                }
+                cloudServiceFactory.createConfiguration(cloudServicePid);
+            } catch (KuraException e) {
+               throw new GwtKuraException(GwtKuraErrorCode.INTERNAL_ERROR, e);
+            } finally {
+                ServiceLocator.getInstance().ungetService(cloudServiceFactoryReference);
+            }
+        }
+    }
 }
