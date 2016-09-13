@@ -21,7 +21,6 @@ import org.eclipse.kura.web.client.messages.Messages;
 import org.eclipse.kura.web.client.ui.EntryClassUi;
 import org.eclipse.kura.web.client.util.FailureHandler;
 import org.eclipse.kura.web.shared.model.GwtCloudConnectionEntry;
-import org.eclipse.kura.web.shared.model.GwtFirewallOpenPortEntry;
 import org.eclipse.kura.web.shared.model.GwtGroupedNVPair;
 import org.eclipse.kura.web.shared.model.GwtXSRFToken;
 import org.eclipse.kura.web.shared.service.GwtCloudService;
@@ -62,8 +61,6 @@ public class CloudServicesUi extends Composite {
 
     interface CloudServicesUiUiBinder extends UiBinder<Widget, CloudServicesUi> {}
 
-    private Map<String, Button> connectButtons    = new HashMap<String, Button>();
-    private Map<String, Button> disconnectButtons = new HashMap<String, Button>();
 
     @UiField
     Well      connectionsWell;
@@ -92,12 +89,10 @@ public class CloudServicesUi extends Composite {
     @UiField
     TextBox   cloudServicePid;
     
-
     @UiField
     CellTable<GwtCloudConnectionEntry> connectionsGrid    = new CellTable<GwtCloudConnectionEntry>();
-    @UiField
-    CellTable<GwtCloudConnectionEntry> connectionEditGrid = new CellTable<GwtCloudConnectionEntry>();
 
+    
     public CloudServicesUi() {
         logger.log(Level.FINER, "Initializing StatusPanelUi...");
         initWidget(uiBinder.createAndBindUi(this));
@@ -300,8 +295,6 @@ public class CloudServicesUi extends Composite {
                 });
             }
 
-        });
-        
+        });   
     }
-
 }
