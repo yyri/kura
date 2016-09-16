@@ -83,14 +83,14 @@
 													<b:AnchorListItem text="Firewall" icon="FIRE"
 														iconFixedWidth="true" ui:field="firewall" />
 
+													<b:AnchorListItem icon="CLOUD"
+														iconFixedWidth="true" text="Cloud Services" ui:field="cloudServices"/> 
+
 													<b:AnchorListItem icon="CUBES"
 														iconFixedWidth="true" text="Packages" ui:field="packages" />
 
 													<b:AnchorListItem icon="GEAR"
-														iconFixedWidth="true" text="Settings" ui:field="settings" />
-													  
-													<b:AnchorListItem icon="CLOUD"
-														iconFixedWidth="true" text="Cloud Services" ui:field="cloudServices"/> 
+														iconFixedWidth="true" text="Settings" ui:field="settings" />													  
 												</b:NavPills>
 											</b:PanelBody>
 										</b:Panel>

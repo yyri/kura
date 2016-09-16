@@ -379,7 +379,7 @@ public class EntryClassUi extends Composite {
 
 			@Override
 			public void onSuccess(GwtXSRFToken token) {
-				gwtComponentService.findComponentConfigurations(token, new AsyncCallback<List<GwtConfigComponent>>() {
+				gwtComponentService.findServicesConfigurations(token, new AsyncCallback<List<GwtConfigComponent>>() {
 					@Override
 					public void onFailure(Throwable ex) {
 						logger.log(Level.SEVERE, ex.getMessage(), ex);
@@ -568,6 +568,9 @@ public class EntryClassUi extends Composite {
 		if (settings.isVisible()) {
 			settingsBinder.setDirty(false);
 		}
+		if (cloudServices.isVisible()) {
+            cloudServicesBinder.setDirty(false);
+        }
 	}
 	
 	private void eclipseMarketplaceInstall(String url) {

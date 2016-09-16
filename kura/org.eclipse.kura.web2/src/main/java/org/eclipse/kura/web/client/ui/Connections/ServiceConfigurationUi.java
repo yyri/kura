@@ -1,25 +1,10 @@
-/*******************************************************************************
- * Copyright (c) 2011, 2016 Eurotech and others
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
- *
- * Contributors:
- *     Eurotech
- *******************************************************************************/
-/*
- * Render the Content in the Main Panel corressponding to Service (GwtBSConfigComponent) selected in the Services Panel
- * 
- * Fields are rendered based on their type (Password(Input), Choice(Dropboxes) etc. with Text fields rendered
- * for both numeric and other textual field with validate() checking if value in numeric fields is numeric
- */
-package org.eclipse.kura.web.client.ui;
+package org.eclipse.kura.web.client.ui.Connections;
 
 import java.util.Iterator;
 import java.util.logging.Level;
 
+import org.eclipse.kura.web.client.ui.AbstractServicesUi;
+import org.eclipse.kura.web.client.ui.EntryClassUi;
 import org.eclipse.kura.web.client.util.FailureHandler;
 import org.eclipse.kura.web.shared.model.GwtConfigComponent;
 import org.eclipse.kura.web.shared.model.GwtConfigParameter;
@@ -29,7 +14,6 @@ import org.eclipse.kura.web.shared.service.GwtComponentServiceAsync;
 import org.eclipse.kura.web.shared.service.GwtSecurityTokenService;
 import org.eclipse.kura.web.shared.service.GwtSecurityTokenServiceAsync;
 import org.gwtbootstrap3.client.ui.Alert;
-import org.gwtbootstrap3.client.ui.AnchorListItem;
 import org.gwtbootstrap3.client.ui.Button;
 import org.gwtbootstrap3.client.ui.ButtonGroup;
 import org.gwtbootstrap3.client.ui.FieldSet;
@@ -39,9 +23,6 @@ import org.gwtbootstrap3.client.ui.Modal;
 import org.gwtbootstrap3.client.ui.ModalBody;
 import org.gwtbootstrap3.client.ui.ModalFooter;
 import org.gwtbootstrap3.client.ui.ModalHeader;
-import org.gwtbootstrap3.client.ui.NavPills;
-import org.gwtbootstrap3.client.ui.PanelBody;
-import org.gwtbootstrap3.client.ui.TextBox;
 import org.gwtbootstrap3.client.ui.html.Span;
 import org.gwtbootstrap3.client.ui.html.Text;
 
@@ -53,34 +34,29 @@ import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 import com.google.gwt.user.client.ui.Widget;
 
-public class ServicesUi extends AbstractServicesUi {
+public class ServiceConfigurationUi extends AbstractServicesUi {
 
-    private static final ServicesUiUiBinder uiBinder = GWT.create(ServicesUiUiBinder.class);
+    private static ServiceConfigurationUiUiBinder uiBinder = GWT.create(ServiceConfigurationUiUiBinder.class);
 
-    interface ServicesUiUiBinder extends UiBinder<Widget, ServicesUi> {
-    }
-
-    private final GwtComponentServiceAsync gwtComponentService = GWT.create(GwtComponentService.class);
     private final GwtSecurityTokenServiceAsync gwtXSRFService = GWT.create(GwtSecurityTokenService.class);
+    private final GwtComponentServiceAsync gwtComponentService = GWT.create(GwtComponentService.class);
 
     private boolean dirty, initialized;
+
+    interface ServiceConfigurationUiUiBinder extends UiBinder<Widget, ServiceConfigurationUi> {
+    }
+
+    private Modal modal;
     private GwtConfigComponent originalConfig;
 
-    NavPills menu;
-    PanelBody content;
-    AnchorListItem service;
-    TextBox validated;
-    FormGroup validatedGroup;
-    EntryClassUi entryClass;
-    Modal modal;
-
     @UiField
-    Button apply, reset;
+    Button applyConnectionEdit;
     @UiField
-    FieldSet fields;
+    Button resetConnectionEdit;
     @UiField
-    Form form;
-
+    FieldSet connectionEditFields;
+    @UiField
+    Form connectionEditField;
     @UiField
     Modal incompleteFieldsModal;
     @UiField
@@ -88,19 +64,15 @@ public class ServicesUi extends AbstractServicesUi {
     @UiField
     Text incompleteFieldsText;
 
-    //
-    // Public methods
-    //
-    public ServicesUi(final GwtConfigComponent addedItem, EntryClassUi entryClassUi) {
+    public ServiceConfigurationUi(final GwtConfigComponent addedItem) {
         initWidget(uiBinder.createAndBindUi(this));
         initialized = false;
-        entryClass = entryClassUi;
         originalConfig = addedItem;
         restoreConfiguration(originalConfig);
-        fields.clear();
+        connectionEditFields.clear();
 
-        apply.setText(MSGS.apply());
-        apply.addClickHandler(new ClickHandler() {
+        applyConnectionEdit.setText(MSGS.apply());
+        applyConnectionEdit.addClickHandler(new ClickHandler() {
 
             @Override
             public void onClick(ClickEvent event) {
@@ -108,28 +80,26 @@ public class ServicesUi extends AbstractServicesUi {
             }
         });
 
-        reset.setText(MSGS.reset());
-        reset.addClickHandler(new ClickHandler() {
+        resetConnectionEdit.setText(MSGS.reset());
+        resetConnectionEdit.addClickHandler(new ClickHandler() {
 
             @Override
             public void onClick(ClickEvent event) {
                 reset();
             }
         });
-        renderForm();
-        initInvalidDataModal();
 
         setDirty(false);
-        apply.setEnabled(false);
-        reset.setEnabled(false);
+        applyConnectionEdit.setEnabled(false);
+        resetConnectionEdit.setEnabled(false);
     }
 
     @Override
-    public void setDirty(boolean flag) {
+    protected void setDirty(boolean flag) {
         dirty = flag;
         if (dirty && initialized) {
-            apply.setEnabled(true);
-            reset.setEnabled(true);
+            applyConnectionEdit.setEnabled(true);
+            resetConnectionEdit.setEnabled(true);
         }
     }
 
@@ -139,7 +109,7 @@ public class ServicesUi extends AbstractServicesUi {
     }
 
     @Override
-    public void reset() {
+    protected void reset() {
         if (isDirty()) {
             // Modal
             modal = new Modal();
@@ -163,10 +133,9 @@ public class ServicesUi extends AbstractServicesUi {
                     modal.hide();
                     restoreConfiguration(originalConfig);
                     renderForm();
-                    apply.setEnabled(false);
-                    reset.setEnabled(false);
+                    applyConnectionEdit.setEnabled(false);
+                    resetConnectionEdit.setEnabled(false);
                     setDirty(false);
-                    entryClass.initServicesTree();
                 }
             });
             group.add(yes);
@@ -183,16 +152,12 @@ public class ServicesUi extends AbstractServicesUi {
             footer.add(group);
             modal.add(footer);
             modal.show();
-        }                 // end is dirty
+        }    // end is dirty
     }
 
-    // TODO: Separate render methods for each type (ex: Boolean, String,
-    // Password, etc.). See latest org.eclipse.kura.web code.
-    // Iterates through all GwtConfigParameter in the selected
-    // GwtConfigComponent
     @Override
-    public void renderForm() {
-        fields.clear();
+    protected void renderForm() {
+        connectionEditFields.clear();
         for (GwtConfigParameter param : m_configurableComponent.getParameters()) {
             if (param.getCardinality() == 0 || param.getCardinality() == 1 || param.getCardinality() == -1) {
                 FormGroup formGroup = new FormGroup();
@@ -207,30 +172,27 @@ public class ServicesUi extends AbstractServicesUi {
     @Override
     protected void renderTextField(final GwtConfigParameter param, boolean isFirstInstance, final FormGroup formGroup) {
         super.renderTextField(param, isFirstInstance, formGroup);
-        fields.add(formGroup);
+        connectionEditFields.add(formGroup);
     }
 
     @Override
     protected void renderPasswordField(final GwtConfigParameter param, boolean isFirstInstance, FormGroup formGroup) {
         super.renderPasswordField(param, isFirstInstance, formGroup);
-        fields.add(formGroup);
+        connectionEditFields.add(formGroup);
     }
 
     @Override
     protected void renderBooleanField(final GwtConfigParameter param, boolean isFirstInstance, FormGroup formGroup) {
         super.renderBooleanField(param, isFirstInstance, formGroup);
-        fields.add(formGroup);
+        connectionEditFields.add(formGroup);
     }
 
     @Override
     protected void renderChoiceField(final GwtConfigParameter param, boolean isFirstInstance, FormGroup formGroup) {
         super.renderChoiceField(param, isFirstInstance, formGroup);
-        fields.add(formGroup);
+        connectionEditFields.add(formGroup);
     }
 
-    //
-    // Private methods
-    //
     private void apply() {
         if (isValid()) {
             if (isDirty()) {
@@ -288,10 +250,9 @@ public class ServicesUi extends AbstractServicesUi {
                                     public void onSuccess(Void result) {
                                         modal.hide();
                                         logger.info(MSGS.info() + ": " + MSGS.deviceConfigApplied());
-                                        apply.setEnabled(false);
-                                        reset.setEnabled(false);
+                                        applyConnectionEdit.setEnabled(false);
+                                        resetConnectionEdit.setEnabled(false);
                                         setDirty(false);
-                                        entryClass.initServicesTree();
                                         EntryClassUi.hideWaitModal();
                                     }
                                 });
@@ -317,15 +278,15 @@ public class ServicesUi extends AbstractServicesUi {
 
                 // ----
 
-            }                 // end isDirty()
+            }                     // end isDirty()
         } else {
             errorLogger.log(Level.SEVERE, "Device configuration error!");
             incompleteFieldsModal.show();
-        }                 // end else isValid
+        }                     // end else isValid
     }
 
     private GwtConfigComponent getUpdatedConfiguration() {
-        Iterator<Widget> it = fields.iterator();
+        Iterator<Widget> it = connectionEditFields.iterator();
         while (it.hasNext()) {
             Widget w = it.next();
             if (w instanceof FormGroup) {
@@ -334,10 +295,5 @@ public class ServicesUi extends AbstractServicesUi {
             }
         }
         return m_configurableComponent;
-    }
-
-    private void initInvalidDataModal() {
-        incompleteFieldsModal.setTitle(MSGS.warning());
-        incompleteFieldsText.setText(MSGS.formWithErrorsOrIncomplete());
     }
 }

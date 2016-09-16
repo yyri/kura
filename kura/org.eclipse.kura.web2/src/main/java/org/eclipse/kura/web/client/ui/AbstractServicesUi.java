@@ -53,10 +53,11 @@ import com.google.gwt.user.client.ui.Composite;
 import com.google.gwt.user.client.ui.Widget;
 
 public abstract class AbstractServicesUi extends Composite {
+
     private static final String CONFIG_MAX_VALUE = "configMaxValue";
     private static final String CONFIG_MIN_VALUE = "configMinValue";
 
-    protected static final Logger logger      = Logger.getLogger(ServicesUi.class.getSimpleName());
+    protected static final Logger logger = Logger.getLogger(ServicesUi.class.getSimpleName());
     protected static final Logger errorLogger = Logger.getLogger("ErrorLogger");
 
     protected static final Messages MSGS = GWT.create(Messages.class);
@@ -101,14 +102,11 @@ public abstract class AbstractServicesUi extends Composite {
         Map<String, String> options = param.getOptions();
         if (options != null && options.size() > 0) {
             renderChoiceField(param, isFirstInstance, formGroup);
-        }
-        else if (param.getType().equals(GwtConfigParameterType.BOOLEAN)) {
+        } else if (param.getType().equals(GwtConfigParameterType.BOOLEAN)) {
             renderBooleanField(param, isFirstInstance, formGroup);
-        }
-        else if (param.getType().equals(GwtConfigParameterType.PASSWORD)) {
+        } else if (param.getType().equals(GwtConfigParameterType.PASSWORD)) {
             renderPasswordField(param, isFirstInstance, formGroup);
-        }
-        else {
+        } else {
             renderTextField(param, isFirstInstance, formGroup);
         }
     }
@@ -157,45 +155,44 @@ public abstract class AbstractServicesUi extends Composite {
         // all the browsers are able to display the
         // double value as expected
         switch (param.getType()) {
-            case LONG:
-                if (param.getValue() != null && !"".equals(param.getValue().trim())) {
-                    formattedValue = String.valueOf(Long.parseLong(param.getValue()));
-                }
-                break;
-            case DOUBLE:
-                if (param.getValue() != null && !"".equals(param.getValue().trim())) {
-                    formattedValue = String.valueOf(Double.parseDouble(param.getValue()));
-                }
-                break;
-            case FLOAT:
-                if (param.getValue() != null && !"".equals(param.getValue().trim())) {
-                    formattedValue = String.valueOf(Float.parseFloat(param.getValue()));
-                }
-                break;
-            case SHORT:
-                if (param.getValue() != null && !"".equals(param.getValue().trim())) {
-                    formattedValue = String.valueOf(Short.parseShort(param.getValue()));
-                }
-                break;
-            case BYTE:
-                if (param.getValue() != null && !"".equals(param.getValue().trim())) {
-                    formattedValue = String.valueOf(Byte.parseByte(param.getValue()));
-                }
-                break;
-            case INTEGER:
-                if (param.getValue() != null && !"".equals(param.getValue().trim())) {
-                    formattedValue = String.valueOf(Integer.parseInt(param.getValue()));
-                }
-                break;
-            default:
-                formattedValue = param.getValue();
-                break;
+        case LONG:
+            if (param.getValue() != null && !"".equals(param.getValue().trim())) {
+                formattedValue = String.valueOf(Long.parseLong(param.getValue()));
+            }
+            break;
+        case DOUBLE:
+            if (param.getValue() != null && !"".equals(param.getValue().trim())) {
+                formattedValue = String.valueOf(Double.parseDouble(param.getValue()));
+            }
+            break;
+        case FLOAT:
+            if (param.getValue() != null && !"".equals(param.getValue().trim())) {
+                formattedValue = String.valueOf(Float.parseFloat(param.getValue()));
+            }
+            break;
+        case SHORT:
+            if (param.getValue() != null && !"".equals(param.getValue().trim())) {
+                formattedValue = String.valueOf(Short.parseShort(param.getValue()));
+            }
+            break;
+        case BYTE:
+            if (param.getValue() != null && !"".equals(param.getValue().trim())) {
+                formattedValue = String.valueOf(Byte.parseByte(param.getValue()));
+            }
+            break;
+        case INTEGER:
+            if (param.getValue() != null && !"".equals(param.getValue().trim())) {
+                formattedValue = String.valueOf(Integer.parseInt(param.getValue()));
+            }
+            break;
+        default:
+            formattedValue = param.getValue();
+            break;
         }
 
         if (param.getValue() != null) {
             textBox.setText(formattedValue);
-        }
-        else {
+        } else {
             textBox.setText("");
         }
 
@@ -208,6 +205,7 @@ public abstract class AbstractServicesUi extends Composite {
 
         textBox.setValidateOnBlur(true);
         textBox.addValidator(new Validator() {
+
             @Override
             public List<EditorError> validate(Editor editor, Object value) {
                 setDirty(true);
@@ -219,7 +217,7 @@ public abstract class AbstractServicesUi extends Composite {
                 return 0;
             }
         });
-        textBox.validate();
+        //textBox.validate();
     }
 
     private TextBoxBase createTextBox(final GwtConfigParameter param) {
@@ -314,8 +312,7 @@ public abstract class AbstractServicesUi extends Composite {
         input.setType(InputType.PASSWORD);
         if (param.getValue() != null) {
             input.setText(param.getValue());
-        }
-        else {
+        } else {
             input.setText("");
         }
 
@@ -326,18 +323,18 @@ public abstract class AbstractServicesUi extends Composite {
 
         input.setValidateOnBlur(true);
         input.addValidator(new Validator() {
+
             @Override
             public List<EditorError> validate(Editor editor, Object value) {
                 setDirty(true);
 
                 List<EditorError> result = new ArrayList<EditorError>();
                 if ((input.getText() == null || "".equals(input.getText().trim()))
-                    && param.isRequired()) {
+                        && param.isRequired()) {
                     // null in required field
                     result.add(new BasicEditorError(input, input.getText(), MSGS.formRequiredParameter()));
                     valid.put(param.getName(), false);
-                }
-                else {
+                } else {
                     param.setValue(input.getText());
                     valid.put(param.getName(), true);
                 }
@@ -395,6 +392,7 @@ public abstract class AbstractServicesUi extends Composite {
         flowPanel.add(radioFalse);
 
         radioTrue.addValueChangeHandler(new ValueChangeHandler() {
+
             @Override
             public void onValueChange(ValueChangeEvent event) {
                 setDirty(true);
@@ -405,6 +403,7 @@ public abstract class AbstractServicesUi extends Composite {
             }
         });
         radioFalse.addValueChangeHandler(new ValueChangeHandler() {
+
             @Override
             public void onValueChange(ValueChangeEvent event) {
                 setDirty(true);
@@ -456,6 +455,7 @@ public abstract class AbstractServicesUi extends Composite {
         }
 
         listBox.addChangeHandler(new ChangeHandler() {
+
             @Override
             public void onChange(ChangeEvent event) {
                 setDirty(true);
@@ -484,114 +484,121 @@ public abstract class AbstractServicesUi extends Composite {
             if (param.getType().equals(GwtConfigParameterType.CHAR)) {
                 if (box.getText().trim().length() > 1) {
                     valid.put(param.getId(), false);
-                    result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(Integer.toString(box.getText().trim().length()), box.getText())));
+                    result.add(new BasicEditorError(box, box.getText(),
+                            MessageUtils.get(Integer.toString(box.getText().trim().length()), box.getText())));
                 }
-                if (param.getMin() != null && Character.valueOf(param.getMin().charAt(0)).charValue() > Character.valueOf(box.getText().trim().charAt(0)).charValue()) {
+                if (param.getMin() != null && param.getMin().charAt(0) > box.getText().trim().charAt(0)) {
                     valid.put(param.getId(), false);
-                    result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MIN_VALUE, Character.valueOf(param.getMin().charAt(0)).charValue())));
+                    result.add(new BasicEditorError(box, box.getText(),
+                            MessageUtils.get(CONFIG_MIN_VALUE, param.getMin().charAt(0))));
                 }
-                if (param.getMax() != null && Character.valueOf(param.getMax().charAt(0)).charValue() < Character.valueOf(box.getText().trim().charAt(0)).charValue()) {
+                if (param.getMax() != null && param.getMax().charAt(0) < box.getText().trim().charAt(0)) {
                     valid.put(param.getId(), false);
-                    result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MAX_VALUE, Character.valueOf(param.getMax().charAt(0)).charValue())));
+                    result.add(new BasicEditorError(box, box.getText(),
+                            MessageUtils.get(CONFIG_MAX_VALUE, param.getMax().charAt(0))));
                 }
-            }
-            else if (param.getType().equals(GwtConfigParameterType.STRING)) {
+            } else if (param.getType().equals(GwtConfigParameterType.STRING)) {
                 int configMinValue = 0;
                 int configMaxValue = 255;
                 try {
                     configMinValue = Integer.parseInt(param.getMin());
-                }
-                catch (NumberFormatException nfe) {
-                    errorLogger.log(Level.SEVERE, "Configuration min value error! Applying UI defaults...");
+                } catch (NumberFormatException nfe) {
+                    errorLogger.log(Level.FINE, "Configuration min value error! Applying UI defaults...");
                 }
                 try {
                     configMaxValue = Integer.parseInt(param.getMax());
-                }
-                catch (NumberFormatException nfe) {
-                    errorLogger.log(Level.SEVERE, "Configuration max value error! Applying UI defaults...");
+                } catch (NumberFormatException nfe) {
+                    errorLogger.log(Level.FINE, "Configuration max value error! Applying UI defaults...");
                 }
 
                 if (String.valueOf(box.getText().trim()).length() < configMinValue) {
                     valid.put(param.getName(), false);
-                    result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MIN_VALUE, configMinValue)));
+                    result.add(new BasicEditorError(box, box.getText(),
+                            MessageUtils.get(CONFIG_MIN_VALUE, configMinValue)));
                 }
                 if (String.valueOf(box.getText().trim()).length() > configMaxValue) {
                     valid.put(param.getName(), false);
-                    result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MAX_VALUE, configMaxValue)));
+                    result.add(new BasicEditorError(box, box.getText(),
+                            MessageUtils.get(CONFIG_MAX_VALUE, configMaxValue)));
                 }
-            }
-            else {
+            } else {
                 try {
                     // numeric value
                     if (param.getType().equals(GwtConfigParameterType.FLOAT)) {
                         Float uiValue = Float.parseFloat(box.getText().trim());
                         if (param.getMin() != null && Float.parseFloat(param.getMin()) > uiValue) {
                             valid.put(param.getId(), false);
-                            result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MIN_VALUE, param.getMin())));
+                            result.add(new BasicEditorError(box, box.getText(),
+                                    MessageUtils.get(CONFIG_MIN_VALUE, param.getMin())));
                         }
                         if (param.getMax() != null && Float.parseFloat(param.getMax()) < uiValue) {
                             valid.put(param.getId(), false);
-                            result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MAX_VALUE, param.getMax())));
+                            result.add(new BasicEditorError(box, box.getText(),
+                                    MessageUtils.get(CONFIG_MAX_VALUE, param.getMax())));
                         }
-                    }
-                    else if (param.getType().equals(GwtConfigParameterType.INTEGER)) {
+                    } else if (param.getType().equals(GwtConfigParameterType.INTEGER)) {
                         Integer uiValue = Integer.parseInt(box.getText().trim());
                         if (param.getMin() != null && Integer.parseInt(param.getMin()) > uiValue) {
                             valid.put(param.getId(), false);
-                            result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MIN_VALUE, param.getMin())));
+                            result.add(new BasicEditorError(box, box.getText(),
+                                    MessageUtils.get(CONFIG_MIN_VALUE, param.getMin())));
                         }
                         if (param.getMax() != null && Integer.parseInt(param.getMax()) < uiValue) {
                             valid.put(param.getId(), false);
-                            result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MAX_VALUE, param.getMax())));
+                            result.add(new BasicEditorError(box, box.getText(),
+                                    MessageUtils.get(CONFIG_MAX_VALUE, param.getMax())));
                         }
-                    }
-                    else if (param.getType().equals(GwtConfigParameterType.SHORT)) {
+                    } else if (param.getType().equals(GwtConfigParameterType.SHORT)) {
                         Short uiValue = Short.parseShort(box.getText().trim());
                         if (param.getMin() != null && Short.parseShort(param.getMin()) > uiValue) {
                             valid.put(param.getId(), false);
-                            result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MIN_VALUE, param.getMin())));
+                            result.add(new BasicEditorError(box, box.getText(),
+                                    MessageUtils.get(CONFIG_MIN_VALUE, param.getMin())));
                         }
                         if (param.getMax() != null && Short.parseShort(param.getMax()) < uiValue) {
                             valid.put(param.getId(), false);
-                            result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MAX_VALUE, param.getMax())));
+                            result.add(new BasicEditorError(box, box.getText(),
+                                    MessageUtils.get(CONFIG_MAX_VALUE, param.getMax())));
                         }
-                    }
-                    else if (param.getType().equals(GwtConfigParameterType.BYTE)) {
+                    } else if (param.getType().equals(GwtConfigParameterType.BYTE)) {
                         Byte uiValue = Byte.parseByte(box.getText().trim());
                         if (param.getMin() != null && Byte.parseByte(param.getMin()) > uiValue) {
                             valid.put(param.getId(), false);
-                            result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MIN_VALUE, param.getMin())));
+                            result.add(new BasicEditorError(box, box.getText(),
+                                    MessageUtils.get(CONFIG_MIN_VALUE, param.getMin())));
                         }
                         if (param.getMax() != null && Byte.parseByte(param.getMax()) < uiValue) {
                             valid.put(param.getId(), false);
-                            result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MAX_VALUE, param.getMax())));
+                            result.add(new BasicEditorError(box, box.getText(),
+                                    MessageUtils.get(CONFIG_MAX_VALUE, param.getMax())));
                         }
-                    }
-                    else if (param.getType().equals(GwtConfigParameterType.LONG)) {
+                    } else if (param.getType().equals(GwtConfigParameterType.LONG)) {
                         Long uiValue = Long.parseLong(box.getText().trim());
                         if (param.getMin() != null && Long.parseLong(param.getMin()) > uiValue) {
                             valid.put(param.getId(), false);
-                            result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MIN_VALUE, param.getMin())));
+                            result.add(new BasicEditorError(box, box.getText(),
+                                    MessageUtils.get(CONFIG_MIN_VALUE, param.getMin())));
                         }
                         if (param.getMax() != null && Long.parseLong(param.getMax()) < uiValue) {
                             valid.put(param.getId(), false);
-                            result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MAX_VALUE, param.getMax())));
+                            result.add(new BasicEditorError(box, box.getText(),
+                                    MessageUtils.get(CONFIG_MAX_VALUE, param.getMax())));
                         }
-                    }
-                    else if (param.getType().equals(GwtConfigParameterType.DOUBLE)) {
+                    } else if (param.getType().equals(GwtConfigParameterType.DOUBLE)) {
                         Double uiValue = Double.parseDouble(box.getText().trim());
                         if (param.getMin() != null && Double.parseDouble(param.getMin()) > uiValue) {
                             valid.put(param.getId(), false);
-                            result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MIN_VALUE, param.getMin())));
+                            result.add(new BasicEditorError(box, box.getText(),
+                                    MessageUtils.get(CONFIG_MIN_VALUE, param.getMin())));
 
                         }
                         if (param.getMax() != null && Double.parseDouble(param.getMax()) < uiValue) {
                             valid.put(param.getId(), false);
-                            result.add(new BasicEditorError(box, box.getText(), MessageUtils.get(CONFIG_MAX_VALUE, param.getMax())));
+                            result.add(new BasicEditorError(box, box.getText(),
+                                    MessageUtils.get(CONFIG_MAX_VALUE, param.getMax())));
                         }
                     }
-                }
-                catch (NumberFormatException e) {
+                } catch (NumberFormatException e) {
                     valid.put(param.getId(), false);
                     result.add(new BasicEditorError(box, box.getText(), e.getLocalizedMessage()));
                 }
@@ -612,8 +619,8 @@ public abstract class AbstractServicesUi extends Composite {
                 param = m_configurableComponent.getParameter(fg.getWidget(i).getTitle());
                 logger.fine("Param: " + fg.getTitle() + " -> " + param);
 
-            }
-            else if (fg.getWidget(i) instanceof ListBox || fg.getWidget(i) instanceof Input || fg.getWidget(i) instanceof TextBoxBase) {
+            } else if (fg.getWidget(i) instanceof ListBox || fg.getWidget(i) instanceof Input
+                    || fg.getWidget(i) instanceof TextBoxBase) {
 
                 if (param == null) {
                     errorLogger.warning("Missing parameter");
@@ -625,8 +632,7 @@ public abstract class AbstractServicesUi extends Composite {
                 }
                 if (param.getCardinality() == 0 || param.getCardinality() == 1 || param.getCardinality() == -1) {
                     param.setValue(value);
-                }
-                else {
+                } else {
                     multiFieldValues.add(value);
                 }
             }
@@ -636,46 +642,61 @@ public abstract class AbstractServicesUi extends Composite {
         }
     }
 
+    protected void restoreConfiguration(GwtConfigComponent originalConfig) {
+        m_configurableComponent = new GwtConfigComponent();
+        m_configurableComponent.setComponentDescription(originalConfig.getComponentDescription());
+        m_configurableComponent.setComponentIcon(originalConfig.getComponentIcon());
+        m_configurableComponent.setComponentId(originalConfig.getComponentId());
+        m_configurableComponent.setComponentName(originalConfig.getComponentName());
+
+        List<GwtConfigParameter> originalParameters = new ArrayList<GwtConfigParameter>();
+        for (GwtConfigParameter parameter : originalConfig.getParameters()) {
+            GwtConfigParameter tempParam = new GwtConfigParameter(parameter);
+            originalParameters.add(tempParam);
+        }
+        m_configurableComponent.setParameters(originalParameters);
+
+        Map<String, Object> originalProperties = new HashMap<String, Object>();
+        originalProperties.putAll(originalConfig.getProperties());
+        m_configurableComponent.setProperties(originalProperties);
+    }
+
     private String getUpdatedFieldConfiguration(GwtConfigParameter param, Widget wg) {
         Map<String, String> options = param.getOptions();
         if (options != null && options.size() > 0) {
             Map<String, String> oMap = param.getOptions();
             if (wg instanceof ListBox) {
                 return oMap.get(((ListBox) wg).getSelectedItemText());
-            }
-            else {
+            } else {
                 return null;
             }
-        }
-        else {
+        } else {
             switch (param.getType()) {
-                case BOOLEAN:
-                    return param.getValue();
-                case LONG:
-                case DOUBLE:
-                case FLOAT:
-                case SHORT:
-                case BYTE:
-                case INTEGER:
-                case CHAR:
-                case STRING:
-                    TextBoxBase tb = (TextBoxBase) wg;
-                    String value = tb.getText();
-                    if (value != null) {
-                        return value;
-                    }
-                    else {
-                        return null;
-                    }
-                case PASSWORD:
-                    if (wg instanceof Input) {
-                        return ((Input) wg).getValue();
-                    }
-                    else {
-                        return null;
-                    }
-                default:
-                    break;
+            case BOOLEAN:
+                return param.getValue();
+            case LONG:
+            case DOUBLE:
+            case FLOAT:
+            case SHORT:
+            case BYTE:
+            case INTEGER:
+            case CHAR:
+            case STRING:
+                TextBoxBase tb = (TextBoxBase) wg;
+                String value = tb.getText();
+                if (value != null) {
+                    return value;
+                } else {
+                    return null;
+                }
+            case PASSWORD:
+                if (wg instanceof Input) {
+                    return ((Input) wg).getValue();
+                } else {
+                    return null;
+                }
+            default:
+                break;
             }
         }
         return null;
