@@ -1,4 +1,4 @@
-package org.eclipse.kura.web.client.ui.Connections;
+package org.eclipse.kura.web.client.ui.CloudServices;
 
 import java.util.Iterator;
 import java.util.logging.Level;
@@ -34,7 +34,7 @@ import com.google.gwt.uibinder.client.UiField;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 import com.google.gwt.user.client.ui.Widget;
 
-public class ServiceConfigurationUi extends AbstractServicesUi {
+public class CloudServiceConfigurationUi extends AbstractServicesUi {
 
     private static ServiceConfigurationUiUiBinder uiBinder = GWT.create(ServiceConfigurationUiUiBinder.class);
 
@@ -43,7 +43,7 @@ public class ServiceConfigurationUi extends AbstractServicesUi {
 
     private boolean dirty, initialized;
 
-    interface ServiceConfigurationUiUiBinder extends UiBinder<Widget, ServiceConfigurationUi> {
+    interface ServiceConfigurationUiUiBinder extends UiBinder<Widget, CloudServiceConfigurationUi> {
     }
 
     private Modal modal;
@@ -64,7 +64,7 @@ public class ServiceConfigurationUi extends AbstractServicesUi {
     @UiField
     Text incompleteFieldsText;
 
-    public ServiceConfigurationUi(final GwtConfigComponent addedItem) {
+    public CloudServiceConfigurationUi(final GwtConfigComponent addedItem) {
         initWidget(uiBinder.createAndBindUi(this));
         initialized = false;
         originalConfig = addedItem;
@@ -112,46 +112,7 @@ public class ServiceConfigurationUi extends AbstractServicesUi {
     protected void reset() {
         if (isDirty()) {
             // Modal
-            modal = new Modal();
-
-            ModalHeader header = new ModalHeader();
-            header.setTitle(MSGS.confirm());
-            modal.add(header);
-
-            ModalBody body = new ModalBody();
-            body.add(new Span(MSGS.deviceConfigDirty()));
-            modal.add(body);
-
-            ModalFooter footer = new ModalFooter();
-            ButtonGroup group = new ButtonGroup();
-            Button yes = new Button();
-            yes.setText(MSGS.yesButton());
-            yes.addClickHandler(new ClickHandler() {
-
-                @Override
-                public void onClick(ClickEvent event) {
-                    modal.hide();
-                    restoreConfiguration(originalConfig);
-                    renderForm();
-                    applyConnectionEdit.setEnabled(false);
-                    resetConnectionEdit.setEnabled(false);
-                    setDirty(false);
-                }
-            });
-            group.add(yes);
-            Button no = new Button();
-            no.setText(MSGS.noButton());
-            no.addClickHandler(new ClickHandler() {
-
-                @Override
-                public void onClick(ClickEvent event) {
-                    modal.hide();
-                }
-            });
-            group.add(no);
-            footer.add(group);
-            modal.add(footer);
-            modal.show();
+            showDirtyModal();
         }    // end is dirty
     }
 
@@ -295,5 +256,52 @@ public class ServiceConfigurationUi extends AbstractServicesUi {
             }
         }
         return m_configurableComponent;
+    }
+    
+    private void showDirtyModal() {
+        modal = new Modal();
+
+        ModalHeader header = new ModalHeader();
+        header.setTitle(MSGS.confirm());
+        modal.add(header);
+
+        ModalBody body = new ModalBody();
+        body.add(new Span(MSGS.deviceConfigDirty()));
+        modal.add(body);
+
+        ModalFooter footer = new ModalFooter();
+        ButtonGroup group = new ButtonGroup();
+        Button yes = new Button();
+        yes.setText(MSGS.yesButton());
+        yes.addClickHandler(new ClickHandler() {
+
+            @Override
+            public void onClick(ClickEvent event) {
+                modal.hide();
+                resetVisualization();
+            }
+        });
+        group.add(yes);
+        Button no = new Button();
+        no.setText(MSGS.noButton());
+        no.addClickHandler(new ClickHandler() {
+
+            @Override
+            public void onClick(ClickEvent event) {
+                modal.hide();
+            }
+        });
+        group.add(no);
+        footer.add(group);
+        modal.add(footer);
+        modal.show();
+    }
+    
+    protected void resetVisualization() {
+        restoreConfiguration(originalConfig);
+        renderForm();
+        applyConnectionEdit.setEnabled(false);
+        resetConnectionEdit.setEnabled(false);
+        setDirty(false);
     }
 }

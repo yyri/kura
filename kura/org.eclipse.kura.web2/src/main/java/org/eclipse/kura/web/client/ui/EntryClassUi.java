@@ -18,7 +18,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.eclipse.kura.web.client.messages.Messages;
-import org.eclipse.kura.web.client.ui.Connections.CloudServicesUi;
+import org.eclipse.kura.web.client.ui.CloudServices.CloudServicesUi;
 import org.eclipse.kura.web.client.ui.Device.DevicePanelUi;
 import org.eclipse.kura.web.client.ui.Firewall.FirewallPanelUi;
 import org.eclipse.kura.web.client.ui.Network.NetworkPanelUi;
