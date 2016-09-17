@@ -84,6 +84,8 @@ public class CloudServicesUi extends Composite {
     @UiField
     Well connectionsWell;
     @UiField
+    Button connectionRefresh;
+    @UiField
     Button newConnection;
     @UiField
     Button deleteConnection;
@@ -123,41 +125,7 @@ public class CloudServicesUi extends Composite {
         cloudServicePid.setValidateOnBlur(true);
         cloudServicePid.setAllowBlank(false);
 
-        newConnection.addClickHandler(new ClickHandler() {
-
-            @Override
-            public void onClick(ClickEvent event) {
-                showNewConnectionModal();
-            }
-        });
-
-        deleteConnection.addClickHandler(new ClickHandler() {
-
-            @Override
-            public void onClick(ClickEvent event) {
-                showDeleteModal();
-            }
-        });
-
-        statusConnect.addClickHandler(new ClickHandler() {
-
-            @Override
-            public void onClick(ClickEvent event) {
-                GwtCloudConnectionEntry selection = selectionModel.getSelectedObject();
-                final String selectedCloudServicePid = selection.getCloudServicePid();
-                connectDataService(selectedCloudServicePid);
-            }
-        });
-
-        statusDisconnect.addClickHandler(new ClickHandler() {
-
-            @Override
-            public void onClick(ClickEvent event) {
-                GwtCloudConnectionEntry selection = selectionModel.getSelectedObject();
-                final String selectedCloudServicePid = selection.getCloudServicePid();
-                disconnectDataService(selectedCloudServicePid);
-            }
-        });
+        initConnectionButtons();
 
         btnCreateComp.addClickHandler(new ClickHandler() {
 
@@ -207,6 +175,80 @@ public class CloudServicesUi extends Composite {
             }
         });
     }
+    
+    public void setDirty(boolean dirty) {
+        this.dirty = dirty;
+        for (int connectionTabIndex = 0; connectionTabIndex < connectionTabContent
+                .getWidgetCount(); connectionTabIndex++) {
+            TabPane pane = (TabPane) connectionTabContent.getWidget(connectionTabIndex);
+            for (int paneIndex = 0; paneIndex < pane.getWidgetCount(); paneIndex++) {
+                ServiceConfigurationUi serviceConfigUi = (ServiceConfigurationUi) pane.getWidget(paneIndex);
+                serviceConfigUi.setDirty(dirty);
+            }
+        }
+    }
+
+    public boolean isDirty() {
+        for (int connectionTabIndex = 0; connectionTabIndex < connectionTabContent
+                .getWidgetCount(); connectionTabIndex++) {
+            TabPane pane = (TabPane) connectionTabContent.getWidget(connectionTabIndex);
+            for (int paneIndex = 0; paneIndex < pane.getWidgetCount(); paneIndex++) {
+                ServiceConfigurationUi serviceConfigUi = (ServiceConfigurationUi) pane.getWidget(paneIndex);
+                dirty = dirty || serviceConfigUi.isDirty();
+            }
+        }
+        return dirty;
+    }
+    
+    
+    //
+    // Private methods
+    //
+    private void initConnectionButtons() {
+        connectionRefresh.addClickHandler(new ClickHandler() {
+
+            @Override
+            public void onClick(ClickEvent event) {
+                refresh();
+            }
+        });
+        
+        newConnection.addClickHandler(new ClickHandler() {
+
+            @Override
+            public void onClick(ClickEvent event) {
+                showNewConnectionModal();
+            }
+        });
+
+        deleteConnection.addClickHandler(new ClickHandler() {
+
+            @Override
+            public void onClick(ClickEvent event) {
+                showDeleteModal();
+            }
+        });
+
+        statusConnect.addClickHandler(new ClickHandler() {
+
+            @Override
+            public void onClick(ClickEvent event) {
+                GwtCloudConnectionEntry selection = selectionModel.getSelectedObject();
+                final String selectedCloudServicePid = selection.getCloudServicePid();
+                connectDataService(selectedCloudServicePid);
+            }
+        });
+
+        statusDisconnect.addClickHandler(new ClickHandler() {
+
+            @Override
+            public void onClick(ClickEvent event) {
+                GwtCloudConnectionEntry selection = selectionModel.getSelectedObject();
+                final String selectedCloudServicePid = selection.getCloudServicePid();
+                disconnectDataService(selectedCloudServicePid);
+            }
+        });
+    }
 
     private void refresh(int delay) {
         Timer timer = new Timer() {
@@ -246,33 +288,6 @@ public class CloudServicesUi extends Composite {
         }
     }
 
-    public void setDirty(boolean dirty) {
-        this.dirty = dirty;
-        for (int connectionTabIndex = 0; connectionTabIndex < connectionTabContent
-                .getWidgetCount(); connectionTabIndex++) {
-            TabPane pane = (TabPane) connectionTabContent.getWidget(connectionTabIndex);
-            for (int paneIndex = 0; paneIndex < pane.getWidgetCount(); paneIndex++) {
-                ServiceConfigurationUi serviceConfigUi = (ServiceConfigurationUi) pane.getWidget(paneIndex);
-                serviceConfigUi.setDirty(dirty);
-            }
-        }
-    }
-
-    public boolean isDirty() {
-        for (int connectionTabIndex = 0; connectionTabIndex < connectionTabContent
-                .getWidgetCount(); connectionTabIndex++) {
-            TabPane pane = (TabPane) connectionTabContent.getWidget(connectionTabIndex);
-            for (int paneIndex = 0; paneIndex < pane.getWidgetCount(); paneIndex++) {
-                ServiceConfigurationUi serviceConfigUi = (ServiceConfigurationUi) pane.getWidget(paneIndex);
-                dirty = dirty || serviceConfigUi.isDirty();
-            }
-        }
-        return dirty;
-    }
-
-    //
-    // Private methods
-    //
     private void showNewConnectionModal() {
         EntryClassUi.showWaitModal();
         cloudServicePid.clear();

@@ -39,6 +39,7 @@
 			<b:Row>
 				<b:Panel>
 					<b:ButtonGroup size="SMALL">
+						<b:Button ui:field="connectionRefresh" addStyleNames="fa fa-refresh"></b:Button>
 						<b:Button ui:field="newConnection" addStyleNames="fa fa-plus"></b:Button>
 						<b:Button ui:field="deleteConnection" addStyleNames="fa fa-trash"></b:Button>
 						<b:Button ui:field="statusConnect" addStyleNames="fa fa-toggle-on"></b:Button>
