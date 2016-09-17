@@ -64,6 +64,7 @@ public class CloudServicesUi extends Composite {
 
     private static final Logger logger = Logger.getLogger(CloudServicesUi.class.getSimpleName());
     private static final Messages MSG = GWT.create(Messages.class);
+    private static final String KURA_CLOUD_SERVICE_FACTORY_PID = "kura.cloud.service.factory.pid";
 
     private static CloudServicesUiUiBinder uiBinder = GWT.create(CloudServicesUiUiBinder.class);
 
@@ -134,36 +135,7 @@ public class CloudServicesUi extends Composite {
 
             @Override
             public void onClick(ClickEvent event) {
-                final Modal modal = new Modal();
-
-                ModalHeader header = new ModalHeader();
-                header.setTitle(MSG.warning());
-                modal.add(header);
-
-                ModalBody body = new ModalBody();
-                body.add(new Span(MSG.cloudServiceDeleteConfirmation()));
-                modal.add(body);
-
-                ModalFooter footer = new ModalFooter();
-                footer.add(new Button(MSG.yesButton(), new ClickHandler() {
-
-                    @Override
-                    public void onClick(ClickEvent event) {
-                        GwtCloudConnectionEntry selection = selectionModel.getSelectedObject();
-                        final String selectedFactoryPid = selection.getCloudFactoryPid();
-                        final String selectedCloudServicePid = selection.getCloudServicePid();
-                        deleteConnection(selectedFactoryPid, selectedCloudServicePid);
-                    }
-                }));
-                footer.add(new Button(MSG.noButton(), new ClickHandler() {
-
-                    @Override
-                    public void onClick(ClickEvent event) {
-                        modal.hide();
-                    }
-                }));
-                modal.add(footer);
-                modal.show();
+                showDeleteModal();
             }
         });
 
@@ -387,8 +359,7 @@ public class CloudServicesUi extends Composite {
 
             @Override
             public void onSuccess(GwtXSRFToken token) {
-                gwtCloudService.createCloudServiceFromFactory(token, factoryPid, newCloudServicePid,
-                        new AsyncCallback<Void>() {
+                gwtCloudService.createCloudServiceFromFactory(token, factoryPid, newCloudServicePid, new AsyncCallback<Void>() {
 
                     @Override
                     public void onFailure(Throwable caught) {
@@ -424,8 +395,7 @@ public class CloudServicesUi extends Composite {
 
             @Override
             public void onSuccess(GwtXSRFToken token) {
-                gwtComponentService.findComponentConfiguration(token, selectedCloudServicePid,
-                        new AsyncCallback<List<GwtConfigComponent>>() {
+                gwtComponentService.findComponentConfiguration(token, selectedCloudServicePid, new AsyncCallback<List<GwtConfigComponent>>() {
 
                     @Override
                     public void onFailure(Throwable ex) {
@@ -436,9 +406,8 @@ public class CloudServicesUi extends Composite {
                     @Override
                     public void onSuccess(List<GwtConfigComponent> result) {
                         for (GwtConfigComponent pair : result) {
-                            if (selectedCloudServicePid.equals(pair.getComponentId())
-                                    && pair.getParameter("kura.cloud.service.factory.pid") != null) {
-                                String factoryPid = pair.getParameter("kura.cloud.service.factory.pid").getValue();
+                            if (selectedCloudServicePid.equals(pair.getComponentId()) && pair.getParameter(KURA_CLOUD_SERVICE_FACTORY_PID) != null) {
+                                String factoryPid = pair.getParameter(KURA_CLOUD_SERVICE_FACTORY_PID).getValue();
                                 getCloudStackConfigurations(factoryPid, selectedCloudServicePid);
                             }
                         }
@@ -470,8 +439,7 @@ public class CloudServicesUi extends Composite {
 
                     @Override
                     public void onSuccess(GwtXSRFToken token) {
-                        gwtComponentService.findFilteredComponentConfigurations(token,
-                                new AsyncCallback<List<GwtConfigComponent>>() {
+                        gwtComponentService.findFilteredComponentConfigurations(token, new AsyncCallback<List<GwtConfigComponent>>() {
 
                             @Override
                             public void onFailure(Throwable ex) {
@@ -510,7 +478,7 @@ public class CloudServicesUi extends Composite {
         TabListItem item = new TabListItem(simplifiedComponentName);
         item.setActive(isFirstEntry);
         item.setDataTarget("#" + simplifiedComponentName);
-        
+
         connectionNavtabs.add(item);
 
         TabPane tabPane = new TabPane();
@@ -596,8 +564,7 @@ public class CloudServicesUi extends Composite {
 
             @Override
             public void onSuccess(GwtXSRFToken token) {
-                gwtCloudService.deleteCloudServiceFromFactory(token, factoryPid, cloudServicePid,
-                        new AsyncCallback<Void>() {
+                gwtCloudService.deleteCloudServiceFromFactory(token, factoryPid, cloudServicePid, new AsyncCallback<Void>() {
 
                     @Override
                     public void onSuccess(Void result) {
@@ -628,6 +595,40 @@ public class CloudServicesUi extends Composite {
 
         ModalFooter footer = new ModalFooter();
         footer.add(new Button(MSG.okButton(), new ClickHandler() {
+
+            @Override
+            public void onClick(ClickEvent event) {
+                modal.hide();
+            }
+        }));
+        modal.add(footer);
+        modal.show();
+    }
+    
+    private void showDeleteModal() {
+        final Modal modal = new Modal();
+
+        ModalHeader header = new ModalHeader();
+        header.setTitle(MSG.warning());
+        modal.add(header);
+
+        ModalBody body = new ModalBody();
+        body.add(new Span(MSG.cloudServiceDeleteConfirmation()));
+        modal.add(body);
+
+        ModalFooter footer = new ModalFooter();
+        footer.add(new Button(MSG.yesButton(), new ClickHandler() {
+
+            @Override
+            public void onClick(ClickEvent event) {
+                GwtCloudConnectionEntry selection = selectionModel.getSelectedObject();
+                final String selectedFactoryPid = selection.getCloudFactoryPid();
+                final String selectedCloudServicePid = selection.getCloudServicePid();
+                deleteConnection(selectedFactoryPid, selectedCloudServicePid);
+                modal.hide();
+            }
+        }));
+        footer.add(new Button(MSG.noButton(), new ClickHandler() {
 
             @Override
             public void onClick(ClickEvent event) {

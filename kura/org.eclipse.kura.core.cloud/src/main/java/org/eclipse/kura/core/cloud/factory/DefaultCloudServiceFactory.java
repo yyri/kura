@@ -211,13 +211,15 @@ public class DefaultCloudServiceFactory implements CloudServiceFactory {
             Map<String, Object> dataServiceProperties = new HashMap<String, Object>();
             name = DATA_TRANSPORT_SERVICE_REFERENCE_NAME + ComponentConstants.REFERENCE_TARGET_SUFFIX;
             dataServiceProperties.put(name, String.format(REFERENCE_TARGET_VALUE_FORMAT, dataTransportServicePid));
+            dataServiceProperties.put(KURA_CLOUD_SERVICE_FACTORY_PID, FACTORY_PID);
 
-            m_configurationService.createFactoryConfiguration(DATA_SERVICE_FACTORY_PID, dataServicePid,
-                    dataServiceProperties, false);
+            m_configurationService.createFactoryConfiguration(DATA_SERVICE_FACTORY_PID, dataServicePid, dataServiceProperties, false);
 
             // create the DataTransportService layer and take a snapshot
-            m_configurationService.createFactoryConfiguration(DATA_TRANSPORT_SERVICE_FACTORY_PID,
-                    dataTransportServicePid, null, true);
+            Map<String, Object> dataTransportServiceProperties = new HashMap<String, Object>();
+            dataTransportServiceProperties.put(KURA_CLOUD_SERVICE_FACTORY_PID, FACTORY_PID);
+            
+            m_configurationService.createFactoryConfiguration(DATA_TRANSPORT_SERVICE_FACTORY_PID, dataTransportServicePid, dataTransportServiceProperties, true);
         } else {
             throw new KuraException(KuraErrorCode.INVALID_PARAMETER, "Invalid PID '{}'", pid);
         }

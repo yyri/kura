@@ -85,8 +85,7 @@ public class GwtCloudServiceImpl extends OsgiRemoteServiceServlet implements Gwt
             if (!cloudServiceFactoryReference.getProperty("component.name").equals(factoryPid)) {
                 continue;
             }
-            CloudServiceFactory cloudServiceFactory = ServiceLocator.getInstance()
-                    .getService(cloudServiceFactoryReference);
+            CloudServiceFactory cloudServiceFactory = ServiceLocator.getInstance().getService(cloudServiceFactoryReference);
             try {
                 componentPids.addAll(cloudServiceFactory.getStackComponentsPids(cloudServicePid));
             } catch (KuraException e) {

@@ -36,6 +36,10 @@ import org.eclipse.kura.web.shared.model.GwtXSRFToken;
 import org.eclipse.kura.web.shared.service.GwtComponentService;
 
 public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements GwtComponentService {
+
+    private static final String SERVICE_FACTORY_PID = "service.factoryPid";
+    private static final String KURA_CLOUD_SERVICE_FACTORY_PID = "kura.cloud.service.factory.pid";
+    
     private static final long serialVersionUID = -4176701819112753800L;
 
     @Override
@@ -47,136 +51,35 @@ public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements
 
             List<ComponentConfiguration> configs = cs.getComponentConfigurations();
             // sort the list alphabetically by service name
-            Collections.sort(configs, new Comparator<ComponentConfiguration>() {
-                @Override
-                public int compare(ComponentConfiguration arg0, ComponentConfiguration arg1) {
-                    String name0;
-                    int start = arg0.getPid().lastIndexOf('.');
-                    int substringIndex = start + 1;
-                    if (start != -1 && substringIndex < arg0.getPid().length()) {
-                        name0 = arg0.getPid().substring(substringIndex);
-                    }
-                    else {
-                        name0 = arg0.getPid();
-                    }
+            sortConfigurations(configs);
 
-                    String name1;
-                    start = arg1.getPid().lastIndexOf('.');
-                    substringIndex = start + 1;
-                    if (start != -1 && substringIndex < arg1.getPid().length()) {
-                        name1 = arg1.getPid().substring(substringIndex);
-                    }
-                    else {
-                        name1 = arg1.getPid();
-                    }
-                    return name0.compareTo(name1);
-                }
-            });
             for (ComponentConfiguration config : configs) {
 
                 // ignore items we want to hide
                 // TODO: the check for cloud services should be improved
                 if (config.getPid().endsWith("SystemPropertiesService") ||
-                    config.getPid().endsWith("NetworkAdminService") ||
-                    config.getPid().endsWith("NetworkConfigurationService") ||
-                    config.getPid().endsWith("SslManagerService") ||
-                    config.getPid().endsWith("FirewallConfigurationService") ||
-                    config.getPid().contains("DataService") ||
-                    config.getPid().contains("CloudService") ||
-                    config.getPid().contains("MqttDataTransport")) {
+                        config.getPid().endsWith("NetworkAdminService") ||
+                        config.getPid().endsWith("NetworkConfigurationService") ||
+                        config.getPid().endsWith("SslManagerService") ||
+                        config.getPid().endsWith("FirewallConfigurationService")) {
+                    continue;
+                }
+                
+                if (config.getConfigurationProperties().get(KURA_CLOUD_SERVICE_FACTORY_PID) != null) {
                     continue;
                 }
 
-                OCD ocd = config.getDefinition();
-                if (ocd != null) {
-
-                    GwtConfigComponent gwtConfig = new GwtConfigComponent();
-                    // gwtConfig.setComponentId(ocd.getId());
-                    gwtConfig.setComponentId(config.getPid());
-
-                    Map<String, Object> props = config.getConfigurationProperties();
-                    if (props != null && props.get("service.factoryPid") != null) {
-                        String pid = stripPidPrefix(config.getPid());
-                        gwtConfig.setComponentName(pid);
-                    }
-                    else {
-                        gwtConfig.setComponentName(ocd.getName());
-                    }
-
-                    gwtConfig.setComponentDescription(ocd.getDescription());
-                    if (ocd.getIcon() != null && !ocd.getIcon().isEmpty()) {
-                        Icon icon = ocd.getIcon().get(0);
-                        gwtConfig.setComponentIcon(icon.getResource());
-                    }
-
-                    List<GwtConfigParameter> gwtParams = new ArrayList<GwtConfigParameter>();
-                    gwtConfig.setParameters(gwtParams);
-                    for (AD ad : ocd.getAD()) {
-                        GwtConfigParameter gwtParam = new GwtConfigParameter();
-                        gwtParam.setId(ad.getId());
-                        gwtParam.setName(ad.getName());
-                        gwtParam.setDescription(ad.getDescription());
-                        gwtParam.setType(GwtConfigParameterType.valueOf(ad.getType().name()));
-                        gwtParam.setRequired(ad.isRequired());
-                        gwtParam.setCardinality(ad.getCardinality());
-                        if (ad.getOption() != null && !ad.getOption().isEmpty()) {
-                            Map<String, String> options = new HashMap<String, String>();
-                            for (Option option : ad.getOption()) {
-                                options.put(option.getLabel(), option.getValue());
-                            }
-                            gwtParam.setOptions(options);
-                        }
-                        gwtParam.setMin(ad.getMin());
-                        gwtParam.setMax(ad.getMax());
-                        if (config.getConfigurationProperties() != null) {
-
-                            // handle the value based on the cardinality of the
-                            // attribute
-                            int cardinality = ad.getCardinality();
-                            Object value = config.getConfigurationProperties().get(ad.getId());
-                            if (value != null) {
-                                if (cardinality == 0 || cardinality == 1 || cardinality == -1) {
-                                    if (gwtParam.getType().equals(GwtConfigParameterType.PASSWORD)) {
-                                        gwtParam.setValue(PLACEHOLDER);
-                                    }
-                                    else {
-                                        gwtParam.setValue(String.valueOf(value));
-                                    }
-                                }
-                                else {
-                                    // this could be an array value
-                                    if (value instanceof Object[]) {
-                                        Object[] objValues = (Object[]) value;
-                                        List<String> strValues = new ArrayList<String>();
-                                        for (Object v : objValues) {
-                                            if (v != null) {
-                                                if (gwtParam.getType().equals(GwtConfigParameterType.PASSWORD)) {
-                                                    strValues.add(PLACEHOLDER);
-                                                }
-                                                else {
-                                                    strValues.add(String.valueOf(v));
-                                                }
-                                            }
-                                        }
-                                        gwtParam.setValues(strValues.toArray(new String[] {}));
-                                    }
-                                }
-                            }
-                            gwtParams.add(gwtParam);
-                        }
-                    }
-                    gwtConfigs.add(gwtConfig);
-                }
+                convertComponentConfigurationByOcd(gwtConfigs, config);
             }
-        }
-        catch (Throwable t) {
+        } catch (Throwable t) {
             KuraExceptionHandler.handle(t);
         }
         return gwtConfigs;
     }
 
     @Override
-    public List<GwtConfigComponent> findFilteredComponentConfigurations(GwtXSRFToken xsrfToken) throws GwtKuraException {
+    public List<GwtConfigComponent> findFilteredComponentConfigurations(GwtXSRFToken xsrfToken)
+            throws GwtKuraException {
         checkXSRFToken(xsrfToken);
         ConfigurationService cs = ServiceLocator.getInstance().getService(ConfigurationService.class);
         List<GwtConfigComponent> gwtConfigs = new ArrayList<GwtConfigComponent>();
@@ -184,202 +87,28 @@ public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements
 
             List<ComponentConfiguration> configs = cs.getComponentConfigurations();
             // sort the list alphabetically by service name
-            Collections.sort(configs, new Comparator<ComponentConfiguration>() {
-                @Override
-                public int compare(ComponentConfiguration arg0, ComponentConfiguration arg1) {
-                    String name0;
-                    int start = arg0.getPid().lastIndexOf('.');
-                    int substringIndex = start + 1;
-                    if (start != -1 && substringIndex < arg0.getPid().length()) {
-                        name0 = arg0.getPid().substring(substringIndex);
-                    }
-                    else {
-                        name0 = arg0.getPid();
-                    }
+            sortConfigurations(configs);
 
-                    String name1;
-                    start = arg1.getPid().lastIndexOf('.');
-                    substringIndex = start + 1;
-                    if (start != -1 && substringIndex < arg1.getPid().length()) {
-                        name1 = arg1.getPid().substring(substringIndex);
-                    }
-                    else {
-                        name1 = arg1.getPid();
-                    }
-                    return name0.compareTo(name1);
-                }
-            });
             for (ComponentConfiguration config : configs) {
-                OCD ocd = config.getDefinition();
-                if (ocd != null) {
-
-                    GwtConfigComponent gwtConfig = new GwtConfigComponent();
-                    // gwtConfig.setComponentId(ocd.getId());
-                    gwtConfig.setComponentId(config.getPid());
-
-                    Map<String, Object> props = config.getConfigurationProperties();
-                    if (props != null && props.get("service.factoryPid") != null) {
-                        String pid = stripPidPrefix(config.getPid());
-                        gwtConfig.setComponentName(pid);
-                    }
-                    else {
-                        gwtConfig.setComponentName(ocd.getName());
-                    }
-
-                    gwtConfig.setComponentDescription(ocd.getDescription());
-                    if (ocd.getIcon() != null && !ocd.getIcon().isEmpty()) {
-                        Icon icon = ocd.getIcon().get(0);
-                        gwtConfig.setComponentIcon(icon.getResource());
-                    }
-
-                    List<GwtConfigParameter> gwtParams = new ArrayList<GwtConfigParameter>();
-                    gwtConfig.setParameters(gwtParams);
-                    for (AD ad : ocd.getAD()) {
-                        GwtConfigParameter gwtParam = new GwtConfigParameter();
-                        gwtParam.setId(ad.getId());
-                        gwtParam.setName(ad.getName());
-                        gwtParam.setDescription(ad.getDescription());
-                        gwtParam.setType(GwtConfigParameterType.valueOf(ad.getType().name()));
-                        gwtParam.setRequired(ad.isRequired());
-                        gwtParam.setCardinality(ad.getCardinality());
-                        if (ad.getOption() != null && !ad.getOption().isEmpty()) {
-                            Map<String, String> options = new HashMap<String, String>();
-                            for (Option option : ad.getOption()) {
-                                options.put(option.getLabel(), option.getValue());
-                            }
-                            gwtParam.setOptions(options);
-                        }
-                        gwtParam.setMin(ad.getMin());
-                        gwtParam.setMax(ad.getMax());
-                        if (config.getConfigurationProperties() != null) {
-
-                            // handle the value based on the cardinality of the
-                            // attribute
-                            int cardinality = ad.getCardinality();
-                            Object value = config.getConfigurationProperties().get(ad.getId());
-                            if (value != null) {
-                                if (cardinality == 0 || cardinality == 1 || cardinality == -1) {
-                                    if (gwtParam.getType().equals(GwtConfigParameterType.PASSWORD)) {
-                                        gwtParam.setValue(PLACEHOLDER);
-                                    }
-                                    else {
-                                        gwtParam.setValue(String.valueOf(value));
-                                    }
-                                }
-                                else {
-                                    // this could be an array value
-                                    if (value instanceof Object[]) {
-                                        Object[] objValues = (Object[]) value;
-                                        List<String> strValues = new ArrayList<String>();
-                                        for (Object v : objValues) {
-                                            if (v != null) {
-                                                if (gwtParam.getType().equals(GwtConfigParameterType.PASSWORD)) {
-                                                    strValues.add(PLACEHOLDER);
-                                                }
-                                                else {
-                                                    strValues.add(String.valueOf(v));
-                                                }
-                                            }
-                                        }
-                                        gwtParam.setValues(strValues.toArray(new String[] {}));
-                                    }
-                                }
-                            }
-                            gwtParams.add(gwtParam);
-                        }
-                    }
-                    gwtConfigs.add(gwtConfig);
-                }
+                convertComponentConfigurationByOcd(gwtConfigs, config);
             }
-        }
-        catch (Throwable t) {
+        } catch (Throwable t) {
             KuraExceptionHandler.handle(t);
         }
         return gwtConfigs;
     }
-    
+
     @Override
-    public List<GwtConfigComponent> findFilteredComponentConfiguration(GwtXSRFToken xsrfToken, String componentPid) throws GwtKuraException {
+    public List<GwtConfigComponent> findFilteredComponentConfiguration(GwtXSRFToken xsrfToken, String componentPid)
+            throws GwtKuraException {
         checkXSRFToken(xsrfToken);
         ConfigurationService cs = ServiceLocator.getInstance().getService(ConfigurationService.class);
         List<GwtConfigComponent> gwtConfigs = new ArrayList<GwtConfigComponent>();
         try {
-
             ComponentConfiguration config = cs.getComponentConfiguration(componentPid);
 
-            OCD ocd = config.getDefinition();
-            if (ocd != null) {
-
-                GwtConfigComponent gwtConfig = new GwtConfigComponent();
-                // gwtConfig.setComponentId(ocd.getId());
-                gwtConfig.setComponentId(config.getPid());
-
-                Map<String, Object> props = config.getConfigurationProperties();
-                if (props != null && props.get("service.factoryPid") != null) {
-                    String pid = stripPidPrefix(config.getPid());
-                    gwtConfig.setComponentName(pid);
-                }
-                else {
-                    gwtConfig.setComponentName(ocd.getName());
-                }
-
-                gwtConfig.setComponentDescription(ocd.getDescription());
-                if (ocd.getIcon() != null && !ocd.getIcon().isEmpty()) {
-                    Icon icon = ocd.getIcon().get(0);
-                    gwtConfig.setComponentIcon(icon.getResource());
-                }
-
-                List<GwtConfigParameter> gwtParams = new ArrayList<GwtConfigParameter>();
-                gwtConfig.setParameters(gwtParams);
-                for (AD ad : ocd.getAD()) {
-
-                    GwtConfigParameter gwtParam = new GwtConfigParameter();
-                    gwtParam.setId(ad.getId());
-                    gwtParam.setName(ad.getName());
-                    gwtParam.setDescription(ad.getDescription());
-                    gwtParam.setType(GwtConfigParameterType.valueOf(ad.getType().name()));
-                    gwtParam.setRequired(ad.isRequired());
-                    gwtParam.setCardinality(ad.getCardinality());
-                    if (ad.getOption() != null && !ad.getOption().isEmpty()) {
-                        Map<String, String> options = new HashMap<String, String>();
-                        for (Option option : ad.getOption()) {
-                            options.put(option.getLabel(), option.getValue());
-                        }
-                        gwtParam.setOptions(options);
-                    }
-                    gwtParam.setMin(ad.getMin());
-                    gwtParam.setMax(ad.getMax());
-                    if (config.getConfigurationProperties() != null) {
-
-                        // handle the value based on the cardinality of the
-                        // attribute
-                        int cardinality = ad.getCardinality();
-                        Object value = config.getConfigurationProperties().get(ad.getId());
-                        if (value != null) {
-                            if (cardinality == 0 || cardinality == 1 || cardinality == -1) {
-                                gwtParam.setValue(String.valueOf(value));
-                            }
-                            else {
-                                // this could be an array value
-                                if (value instanceof Object[]) {
-                                    Object[] objValues = (Object[]) value;
-                                    List<String> strValues = new ArrayList<String>();
-                                    for (Object v : objValues) {
-                                        if (v != null) {
-                                            strValues.add(String.valueOf(v));
-                                        }
-                                    }
-                                    gwtParam.setValues(strValues.toArray(new String[] {}));
-                                }
-                            }
-                        }
-                        gwtParams.add(gwtParam);
-                    }
-                }
-                gwtConfigs.add(gwtConfig);
-            }
-        }
-        catch (Throwable t) {
+            convertComponentConfigurationByOcd(gwtConfigs, config);
+        } catch (Throwable t) {
             KuraExceptionHandler.handle(t);
         }
         return gwtConfigs;
@@ -394,31 +123,8 @@ public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements
 
             List<ComponentConfiguration> configs = cs.getComponentConfigurations();
             // sort the list alphabetically by service name
-            Collections.sort(configs, new Comparator<ComponentConfiguration>() {
-                @Override
-                public int compare(ComponentConfiguration arg0, ComponentConfiguration arg1) {
-                    String name0;
-                    int start = arg0.getPid().lastIndexOf('.');
-                    int substringIndex = start + 1;
-                    if (start != -1 && substringIndex < arg0.getPid().length()) {
-                        name0 = arg0.getPid().substring(substringIndex);
-                    }
-                    else {
-                        name0 = arg0.getPid();
-                    }
+            sortConfigurations(configs);
 
-                    String name1;
-                    start = arg1.getPid().lastIndexOf('.');
-                    substringIndex = start + 1;
-                    if (start != -1 && substringIndex < arg1.getPid().length()) {
-                        name1 = arg1.getPid().substring(substringIndex);
-                    }
-                    else {
-                        name1 = arg1.getPid();
-                    }
-                    return name0.compareTo(name1);
-                }
-            });
             for (ComponentConfiguration config : configs) {
 
                 OCD ocd = config.getDefinition();
@@ -429,11 +135,10 @@ public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements
                     gwtConfig.setComponentId(config.getPid());
 
                     Map<String, Object> props = config.getConfigurationProperties();
-                    if (props != null && props.get("service.factoryPid") != null) {
+                    if (props != null && props.get(SERVICE_FACTORY_PID) != null) {
                         String pid = stripPidPrefix(config.getPid());
                         gwtConfig.setComponentName(pid);
-                    }
-                    else {
+                    } else {
                         gwtConfig.setComponentName(ocd.getName());
                     }
 
@@ -461,15 +166,13 @@ public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements
                                     if (v != null) {
                                         if (gwtParam.getType().equals(GwtConfigParameterType.PASSWORD)) {
                                             strValues.add(PLACEHOLDER);
-                                        }
-                                        else {
+                                        } else {
                                             strValues.add(String.valueOf(v));
                                         }
                                     }
                                 }
                                 gwtParam.setValues(strValues.toArray(new String[] {}));
-                            }
-                            else if (value != null) {
+                            } else if (value != null) {
                                 gwtParam.setValue(String.valueOf(value));
                             }
 
@@ -480,15 +183,15 @@ public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements
                     gwtConfigs.add(gwtConfig);
                 }
             }
-        }
-        catch (Throwable t) {
+        } catch (Throwable t) {
             KuraExceptionHandler.handle(t);
         }
         return gwtConfigs;
     }
 
     @Override
-    public List<GwtConfigComponent> findComponentConfiguration(GwtXSRFToken xsrfToken, String componentPid) throws GwtKuraException {
+    public List<GwtConfigComponent> findComponentConfiguration(GwtXSRFToken xsrfToken, String componentPid)
+            throws GwtKuraException {
         checkXSRFToken(xsrfToken);
         ConfigurationService cs = ServiceLocator.getInstance().getService(ConfigurationService.class);
         List<GwtConfigComponent> gwtConfigs = new ArrayList<GwtConfigComponent>();
@@ -504,11 +207,10 @@ public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements
                 gwtConfig.setComponentId(config.getPid());
 
                 Map<String, Object> props = config.getConfigurationProperties();
-                if (props != null && props.get("service.factoryPid") != null) {
+                if (props != null && props.get(SERVICE_FACTORY_PID) != null) {
                     String pid = stripPidPrefix(config.getPid());
                     gwtConfig.setComponentName(pid);
-                }
-                else {
+                } else {
                     gwtConfig.setComponentName(ocd.getName());
                 }
 
@@ -536,15 +238,13 @@ public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements
                                 if (v != null) {
                                     if (gwtParam.getType().equals(GwtConfigParameterType.PASSWORD)) {
                                         strValues.add(PLACEHOLDER);
-                                    }
-                                    else {
+                                    } else {
                                         strValues.add(String.valueOf(v));
                                     }
                                 }
                             }
                             gwtParam.setValues(strValues.toArray(new String[] {}));
-                        }
-                        else if (value != null) {
+                        } else if (value != null) {
                             gwtParam.setValue(String.valueOf(value));
                         }
 
@@ -554,8 +254,7 @@ public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements
 
                 gwtConfigs.add(gwtConfig);
             }
-        }
-        catch (Throwable t) {
+        } catch (Throwable t) {
             KuraExceptionHandler.handle(t);
         }
         return gwtConfigs;
@@ -563,7 +262,8 @@ public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements
     }
 
     @Override
-    public void updateComponentConfiguration(GwtXSRFToken xsrfToken, GwtConfigComponent gwtCompConfig) throws GwtKuraException {
+    public void updateComponentConfiguration(GwtXSRFToken xsrfToken, GwtConfigComponent gwtCompConfig)
+            throws GwtKuraException {
         checkXSRFToken(xsrfToken);
         ConfigurationService cs = ServiceLocator.getInstance().getService(ConfigurationService.class);
         try {
@@ -587,12 +287,10 @@ public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements
 
                     if (currentObjValue instanceof Password && PLACEHOLDER.equals(strValue)) {
                         objValue = currentConfigProp.get(gwtConfigParam.getId());
-                    }
-                    else {
+                    } else {
                         objValue = getObjectValue(gwtConfigParam, strValue);
                     }
-                }
-                else {
+                } else {
 
                     String[] strValues = gwtConfigParam.getValues();
 
@@ -617,49 +315,153 @@ public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements
             //
             // apply them
             cs.updateConfiguration(gwtCompConfig.getComponentId(), properties);
-        }
-        catch (Throwable t) {
+        } catch (Throwable t) {
             KuraExceptionHandler.handle(t);
         }
     }
+    
+    private void convertComponentConfigurationByOcd(List<GwtConfigComponent> gwtConfigs, ComponentConfiguration config) {
+        OCD ocd = config.getDefinition();
+        if (ocd != null) {
 
+            GwtConfigComponent gwtConfig = new GwtConfigComponent();
+            // gwtConfig.setComponentId(ocd.getId());
+            gwtConfig.setComponentId(config.getPid());
+
+            Map<String, Object> props = config.getConfigurationProperties();
+            if (props != null && props.get(SERVICE_FACTORY_PID) != null) {
+                String pid = stripPidPrefix(config.getPid());
+                gwtConfig.setComponentName(pid);
+            } else {
+                gwtConfig.setComponentName(ocd.getName());
+            }
+
+            gwtConfig.setComponentDescription(ocd.getDescription());
+            if (ocd.getIcon() != null && !ocd.getIcon().isEmpty()) {
+                Icon icon = ocd.getIcon().get(0);
+                gwtConfig.setComponentIcon(icon.getResource());
+            }
+
+            List<GwtConfigParameter> gwtParams = new ArrayList<GwtConfigParameter>();
+            gwtConfig.setParameters(gwtParams);
+            for (AD ad : ocd.getAD()) {
+                GwtConfigParameter gwtParam = new GwtConfigParameter();
+                gwtParam.setId(ad.getId());
+                gwtParam.setName(ad.getName());
+                gwtParam.setDescription(ad.getDescription());
+                gwtParam.setType(GwtConfigParameterType.valueOf(ad.getType().name()));
+                gwtParam.setRequired(ad.isRequired());
+                gwtParam.setCardinality(ad.getCardinality());
+                if (ad.getOption() != null && !ad.getOption().isEmpty()) {
+                    Map<String, String> options = new HashMap<String, String>();
+                    for (Option option : ad.getOption()) {
+                        options.put(option.getLabel(), option.getValue());
+                    }
+                    gwtParam.setOptions(options);
+                }
+                gwtParam.setMin(ad.getMin());
+                gwtParam.setMax(ad.getMax());
+                if (config.getConfigurationProperties() != null) {
+
+                    // handle the value based on the cardinality of the
+                    // attribute
+                    int cardinality = ad.getCardinality();
+                    Object value = config.getConfigurationProperties().get(ad.getId());
+                    if (value != null) {
+                        if (cardinality == 0 || cardinality == 1 || cardinality == -1) {
+                            if (gwtParam.getType().equals(GwtConfigParameterType.PASSWORD)) {
+                                gwtParam.setValue(PLACEHOLDER);
+                            } else {
+                                gwtParam.setValue(String.valueOf(value));
+                            }
+                        } else {
+                            // this could be an array value
+                            if (value instanceof Object[]) {
+                                Object[] objValues = (Object[]) value;
+                                List<String> strValues = new ArrayList<String>();
+                                for (Object v : objValues) {
+                                    if (v != null) {
+                                        if (gwtParam.getType().equals(GwtConfigParameterType.PASSWORD)) {
+                                            strValues.add(PLACEHOLDER);
+                                        } else {
+                                            strValues.add(String.valueOf(v));
+                                        }
+                                    }
+                                }
+                                gwtParam.setValues(strValues.toArray(new String[] {}));
+                            }
+                        }
+                    }
+                    gwtParams.add(gwtParam);
+                }
+            }
+            gwtConfigs.add(gwtConfig);
+        }
+    }
+
+    private void sortConfigurations(List<ComponentConfiguration> configs) {
+        Collections.sort(configs, new Comparator<ComponentConfiguration>() {
+
+            @Override
+            public int compare(ComponentConfiguration arg0, ComponentConfiguration arg1) {
+                String name0;
+                int start = arg0.getPid().lastIndexOf('.');
+                int substringIndex = start + 1;
+                if (start != -1 && substringIndex < arg0.getPid().length()) {
+                    name0 = arg0.getPid().substring(substringIndex);
+                } else {
+                    name0 = arg0.getPid();
+                }
+
+                String name1;
+                start = arg1.getPid().lastIndexOf('.');
+                substringIndex = start + 1;
+                if (start != -1 && substringIndex < arg1.getPid().length()) {
+                    name1 = arg1.getPid().substring(substringIndex);
+                } else {
+                    name1 = arg1.getPid();
+                }
+                return name0.compareTo(name1);
+            }
+        });
+    }
+    
     private Object getObjectValue(GwtConfigParameter gwtConfigParam, String strValue) {
         Object objValue = null;
         GwtConfigParameterType gwtType = gwtConfigParam.getType();
         if (gwtType == GwtConfigParameterType.STRING) {
             objValue = strValue;
-        }
-        else if (strValue != null && !strValue.trim().isEmpty()) {
+        } else if (strValue != null && !strValue.trim().isEmpty()) {
             switch (gwtType) {
-                case LONG:
-                    objValue = Long.parseLong(strValue);
-                    break;
-                case DOUBLE:
-                    objValue = Double.parseDouble(strValue);
-                    break;
-                case FLOAT:
-                    objValue = Float.parseFloat(strValue);
-                    break;
-                case INTEGER:
-                    objValue = Integer.parseInt(strValue);
-                    break;
-                case SHORT:
-                    objValue = Short.parseShort(strValue);
-                    break;
-                case BYTE:
-                    objValue = Byte.parseByte(strValue);
-                    break;
-                case BOOLEAN:
-                    objValue = Boolean.parseBoolean(strValue);
-                    break;
-                case PASSWORD:
-                    objValue = new Password(strValue);
-                    break;
-                case CHAR:
-                    objValue = Character.valueOf(strValue.charAt(0));
-                    break;
-                default:
-                    break;
+            case LONG:
+                objValue = Long.parseLong(strValue);
+                break;
+            case DOUBLE:
+                objValue = Double.parseDouble(strValue);
+                break;
+            case FLOAT:
+                objValue = Float.parseFloat(strValue);
+                break;
+            case INTEGER:
+                objValue = Integer.parseInt(strValue);
+                break;
+            case SHORT:
+                objValue = Short.parseShort(strValue);
+                break;
+            case BYTE:
+                objValue = Byte.parseByte(strValue);
+                break;
+            case BOOLEAN:
+                objValue = Boolean.parseBoolean(strValue);
+                break;
+            case PASSWORD:
+                objValue = new Password(strValue);
+                break;
+            case CHAR:
+                objValue = Character.valueOf(strValue.charAt(0));
+                break;
+            default:
+                break;
             }
         }
         return objValue;
@@ -669,101 +471,99 @@ public class GwtComponentServiceImpl extends OsgiRemoteServiceServlet implements
         List<Object> values = new ArrayList<Object>();
         GwtConfigParameterType type = gwtConfigParam.getType();
         switch (type) {
-            case BOOLEAN:
-                for (String value : defaultValues) {
-                    if (!value.trim().isEmpty()) {
-                        values.add(Boolean.valueOf(value));
-                    }
+        case BOOLEAN:
+            for (String value : defaultValues) {
+                if (!value.trim().isEmpty()) {
+                    values.add(Boolean.valueOf(value));
                 }
-                return values.toArray(new Boolean[] {});
+            }
+            return values.toArray(new Boolean[] {});
 
-            case BYTE:
-                for (String value : defaultValues) {
-                    if (!value.trim().isEmpty()) {
-                        values.add(Byte.valueOf(value));
-                    }
+        case BYTE:
+            for (String value : defaultValues) {
+                if (!value.trim().isEmpty()) {
+                    values.add(Byte.valueOf(value));
                 }
-                return values.toArray(new Byte[] {});
+            }
+            return values.toArray(new Byte[] {});
 
-            case CHAR:
-                for (String value : defaultValues) {
-                    if (!value.trim().isEmpty()) {
-                        values.add(new Character(value.charAt(0)));
-                    }
+        case CHAR:
+            for (String value : defaultValues) {
+                if (!value.trim().isEmpty()) {
+                    values.add(new Character(value.charAt(0)));
                 }
-                return values.toArray(new Character[] {});
+            }
+            return values.toArray(new Character[] {});
 
-            case DOUBLE:
-                for (String value : defaultValues) {
-                    if (!value.trim().isEmpty()) {
-                        values.add(Double.valueOf(value));
-                    }
+        case DOUBLE:
+            for (String value : defaultValues) {
+                if (!value.trim().isEmpty()) {
+                    values.add(Double.valueOf(value));
                 }
-                return values.toArray(new Double[] {});
+            }
+            return values.toArray(new Double[] {});
 
-            case FLOAT:
-                for (String value : defaultValues) {
-                    if (!value.trim().isEmpty()) {
-                        values.add(Float.valueOf(value));
-                    }
+        case FLOAT:
+            for (String value : defaultValues) {
+                if (!value.trim().isEmpty()) {
+                    values.add(Float.valueOf(value));
                 }
-                return values.toArray(new Float[] {});
+            }
+            return values.toArray(new Float[] {});
 
-            case INTEGER:
-                for (String value : defaultValues) {
-                    if (!value.trim().isEmpty()) {
-                        values.add(Integer.valueOf(value));
-                    }
+        case INTEGER:
+            for (String value : defaultValues) {
+                if (!value.trim().isEmpty()) {
+                    values.add(Integer.valueOf(value));
                 }
-                return values.toArray(new Integer[] {});
+            }
+            return values.toArray(new Integer[] {});
 
-            case LONG:
-                for (String value : defaultValues) {
-                    if (!value.trim().isEmpty()) {
-                        values.add(Long.valueOf(value));
-                    }
+        case LONG:
+            for (String value : defaultValues) {
+                if (!value.trim().isEmpty()) {
+                    values.add(Long.valueOf(value));
                 }
-                return values.toArray(new Long[] {});
+            }
+            return values.toArray(new Long[] {});
 
-            case SHORT:
-                for (String value : defaultValues) {
-                    if (!value.trim().isEmpty()) {
-                        values.add(Short.valueOf(value));
-                    }
+        case SHORT:
+            for (String value : defaultValues) {
+                if (!value.trim().isEmpty()) {
+                    values.add(Short.valueOf(value));
                 }
-                return values.toArray(new Short[] {});
+            }
+            return values.toArray(new Short[] {});
 
-            case PASSWORD:
-                for (String value : defaultValues) {
-                    if (!value.trim().isEmpty()) {
-                        values.add(new Password(value));
-                    }
+        case PASSWORD:
+            for (String value : defaultValues) {
+                if (!value.trim().isEmpty()) {
+                    values.add(new Password(value));
                 }
-                return values.toArray(new Password[] {});
+            }
+            return values.toArray(new Password[] {});
 
-            case STRING:
-                for (String value : defaultValues) {
-                    if (!value.trim().isEmpty()) {
-                        values.add(value);
-                    }
+        case STRING:
+            for (String value : defaultValues) {
+                if (!value.trim().isEmpty()) {
+                    values.add(value);
                 }
-                return values.toArray(new String[] {});
+            }
+            return values.toArray(new String[] {});
+        default:
+            return null;
         }
-
-        return null;
     }
 
     private String stripPidPrefix(String pid) {
         int start = pid.lastIndexOf('.');
         if (start < 0) {
             return pid;
-        }
-        else {
+        } else {
             int begin = start + 1;
             if (begin < pid.length()) {
                 return pid.substring(begin);
-            }
-            else {
+            } else {
                 return pid;
             }
         }

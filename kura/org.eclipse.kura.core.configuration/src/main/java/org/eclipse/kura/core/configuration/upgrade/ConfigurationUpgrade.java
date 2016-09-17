@@ -59,8 +59,10 @@ public class ConfigurationUpgrade {
 				props.put(ConfigurationAdmin.SERVICE_FACTORYPID, DATA_SERVICE_FACTORY_PID);
 				String name = DATA_TRANSPORT_SERVICE_REFERENCE_NAME+ComponentConstants.REFERENCE_TARGET_SUFFIX;
 				props.put(name, String.format(REFERENCE_TARGET_VALUE_FORMAT, DATA_TRANSPORT_SERVICE_PID));
+				props.put(KURA_CLOUD_SERVICE_FACTORY_PID, FACTORY_PID);
 			} else if (DATA_TRANSPORT_SERVICE_PID.equals(pid)) {
 				props.put(ConfigurationAdmin.SERVICE_FACTORYPID, DATA_TRANSPORT_SERVICE_FACTORY_PID);
+				props.put(KURA_CLOUD_SERVICE_FACTORY_PID, FACTORY_PID);
 			}
 		}
 		
